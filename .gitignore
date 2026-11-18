@@ -1,0 +1,40 @@
+node_modules/
+dist/
+server/
+.pnpm-store/
+.vite/
+.vercel/
+.env
+.env.*
+!.env.example
+
+.DS_Store
+output/
+
+# Local media is excluded unless explicitly approved below.
+*.[pP][nN][gG]
+*.[jJ][pP][gG]
+*.[jJ][pP][eE][gG]
+*.[wW][eE][bB][pP]
+*.[gG][iI][fF]
+*.[aA][vV][iI][fF]
+*.[hH][eE][iI][cC]
+*.[hH][eE][iI][fF]
+*.[sS][vV][gG]
+*.[iI][cC][oO]
+*.[pP][dD][fF]
+*.[mM][pP]4
+*.[mM][oO][vV]
+*.[wW][eE][bB][mM]
+*.[mM][pP]3
+*.[wW][aA][vV]
+
+# Asset directories: only public/demo/ is intended for committed demo assets.
+/assets/
+/src/assets/
+/public/**
+!/public/demo/
+!/public/demo/**
+
+# Required application branding (favicon, UI mark, and offline shell).
+!/public/picopos-mark.svg
