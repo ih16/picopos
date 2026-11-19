@@ -22,6 +22,7 @@ export default component$(() => {
     <QwikCityProvider>
       <head>
         <meta charSet="utf-8" />
+        <meta name="google-site-verification" content="RgwJZKsvXkAm5t0DiNWFKjBQzh8eKI-Z6AqBJVtrmIU" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="theme-color" content="#e8eaee" />
         <link rel="icon" type="image/svg+xml" href="/picopos-mark.svg" />

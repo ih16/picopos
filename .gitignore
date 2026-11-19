@@ -38,6 +38,7 @@ output/
 
 # Required application branding (favicon, UI mark, and offline shell).
 !/public/picopos-mark.svg
+!/public/about.html
 !/public/privacy.html
 !/public/terms.html
 
