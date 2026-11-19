@@ -4084,13 +4084,14 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
   .product-list-scroll-frame > .product-grid {
     flex: none;
   }
+  /* A swipe at a list boundary continues on the mobile page. The root
+     still suppresses viewport overscroll, and dialogs keep their own boundary. */
+  .workspace-page :is(.component-scroll, .table-wrap, .scroll-rows > tbody, .dashboard-bars) {
+    overscroll-behavior-y: auto;
+  }
   .order-detail-page .component-scroll {
     overflow: visible;
-    overscroll-behavior: auto;
     scrollbar-gutter: auto;
-  }
-  .order-header .action-bar:has(.return-shortcut) {
-    display: contents;
   }
   .order-header,
   .order-header-details {
@@ -4175,14 +4176,18 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
     box-shadow: var(--shadow-panel);
   }
   .record-shortcut.action-bar,
-  .action-bar .return-shortcut {
+  .order-detail-page .order-header > .action-bar {
     position: fixed;
     right: max(12px, env(safe-area-inset-right));
     bottom: calc(var(--mobile-nav-height) + 12px);
     z-index: 10;
+    max-width: calc(100% - 24px);
+    box-shadow: var(--shadow-panel);
+  }
+  .record-shortcut.action-bar,
+  .order-header .action-bar:has(> .return-shortcut:only-child) {
     padding: 0;
     border: 0;
-    box-shadow: var(--shadow-panel);
   }
   .record-shortcut .button,
   .action-bar .return-shortcut {
@@ -4195,18 +4200,21 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
     width: 21px;
     height: 21px;
   }
-  .workspace-page:has(.record-shortcut, .return-shortcut) {
+  .workspace-page:has(.record-shortcut) {
     padding-bottom: 56px;
   }
-  /* The Orders list keeps its filters above the scrolling cards. */
-  .workspace:has(.workspace-page:not([hidden]) > .orders-page) {
+  .order-detail-page:has(.order-header > .action-bar > .button) {
+    padding-bottom: 68px;
+  }
+  /* Keep the list toolbar in place while its records scroll. */
+  .workspace:has(.workspace-page:not([hidden]) > :is(.orders-page, .stock-entries-page)) {
     height: 100dvh;
     overflow: hidden;
   }
-  .workspace-main:has(.workspace-page:not([hidden]) > .orders-page) {
+  .workspace-main:has(.workspace-page:not([hidden]) > :is(.orders-page, .stock-entries-page)) {
     flex: 1;
   }
-  .workspace-page:has(> .orders-page) {
+  .workspace-page:has(> :is(.orders-page, .stock-entries-page)) {
     padding-bottom: 0;
   }
   .orders-page > .orders-list {
@@ -4229,10 +4237,42 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
     overflow: hidden;
     white-space: nowrap;
   }
-  .stock-entries-table > tbody,
-  .inventory-page .virtual-scroll {
-    flex: none;
-    max-height: 72dvh;
+  .stock-entries-page > .panel {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+  .stock-entries-page .virtual-scroll {
+    position: relative;
+    flex: 1;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+  }
+  .stock-entries-page .virtual-records {
+    padding-bottom: 56px;
+  }
+  /* Include the space between cards in each virtual row's measured height. */
+  .stock-entry-row {
+    padding-bottom: var(--space-3);
+  }
+  .stock-entry-card {
+    display: grid;
+    gap: var(--space-2);
+  }
+  .stock-entry-card .mobile-record-values,
+  .stock-entry-card p {
+    margin: 0;
+  }
+  .stock-entry-lot {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-2);
+    border-top: 1px solid var(--line);
+    padding-top: var(--space-2);
   }
   .help-topic-picker {
     display: block;
@@ -4369,5 +4409,41 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
   .ui-modal .action-bar,
   .modal-footer {
     padding-bottom: max(var(--space-3), env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 760px) {
+  .inline-list-filters {
+    display: none;
+  }
+  .filter-trigger.button {
+    position: relative;
+    width: 44px;
+    height: 44px;
+    padding: 10px;
+    margin-inline-start: auto;
+  }
+  .filter-trigger .icon {
+    width: 20px;
+    height: 20px;
+  }
+  .filter-count {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    min-width: 18px;
+    padding-inline: 4px;
+    border-radius: var(--radius-pill);
+    background: var(--action);
+    color: var(--action-text);
+    font-size: var(--text-caption);
+    line-height: 18px;
+  }
+  .inventory-toolbar:has(.filter-trigger) .catalog-tabs {
+    width: auto;
+    flex: 1;
+  }
+  .filter-fields > .button {
+    justify-self: end;
   }
 }

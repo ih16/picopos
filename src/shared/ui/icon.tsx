@@ -30,6 +30,7 @@ const paths = {
   'stock-in': ['M3 12h5l2 4h4l2-4h5v8H3v-8Zm0 0 3-6h2m13 6-3-6h-2', 'M12 2v9m-3-3 3 3 3-3'],
   'lot-add': ['m11 2 9 5-9 5-9-5 9-5Zm-9 9 9 5 4-2m-13 1 9 5', 'M19 14v8m-4-4h8'],
   plus: ['M12 5v14M5 12h14'],
+  filter: ['M3 4h18l-7 8v6l-4 2v-8L3 4Z'],
   search: ['M16 10a6 6 0 1 1-12 0 6 6 0 0 1 12 0Zm-1.5 4.5L21 21'],
   calendar: ['M4 5h16v15H4zM4 10h16M8 3v4m8-4v4'],
   save: ['M4 3h13l3 3v15H4V3Z', 'M8 3v6h8V3M8 21v-8h8v8'],

@@ -1,3 +1,4 @@
+import { ListFilters } from '../../shared/ui/list-filters';
 import { decimalAmount } from '../../shared/lib/format';
 import { workbookCurrency, workbookNumberFormat } from '../../domain/settings';
 import { $, component$, useContext, useSignal, useTask$, type QRL } from '@builder.io/qwik';
@@ -309,7 +310,11 @@ export const Catalog = component$<Props>(({ data, busy, error, onCommit$ }) => {
         </nav>
         {subpage.value === 'products' ? (
           <>
-            <div class="row filters catalog-filters">
+            <ListFilters
+              title="Filter products"
+              count={category.value.length + status.value.length + Number(Boolean(query))}
+              class="catalog-filters"
+            >
               <label class="field catalog-search input-with-icon">
                 <span class="sr-only">Search products</span>
                 <Icon name="search" />
@@ -351,13 +356,17 @@ export const Catalog = component$<Props>(({ data, busy, error, onCommit$ }) => {
                   <Icon name="close" />
                 </Button>
               )}
-            </div>
+            </ListFilters>
             <p class="sr-only" aria-live="polite">
               {shown.length} of {data.Products.length} products
             </p>
           </>
         ) : (
-          <div class="row filters catalog-filters">
+          <ListFilters
+            title="Filter categories"
+            count={Number(Boolean(categorySearch.value.trim()))}
+            class="catalog-filters"
+          >
             <label class="field catalog-search input-with-icon">
               <span class="sr-only">Search categories</span>
               <Icon name="search" />
@@ -369,7 +378,7 @@ export const Catalog = component$<Props>(({ data, busy, error, onCommit$ }) => {
                 onInput$={(_, el) => (categorySearch.value = el.value)}
               />
             </label>
-          </div>
+          </ListFilters>
         )}
       </div>
       {!editorOpen.value && (

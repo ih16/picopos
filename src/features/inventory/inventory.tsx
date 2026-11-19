@@ -1,3 +1,4 @@
+import { ListFilters } from '../../shared/ui/list-filters';
 import { workbookNumberFormat } from '../../domain/settings';
 import { $, component$, useComputed$, useContext, useSignal, useTask$, type QRL } from '@builder.io/qwik';
 import { ScreenNavigation } from '../../app/navigation/screen-navigation';
@@ -167,7 +168,7 @@ export const Inventory = component$<{
   });
 
   return (
-    <section class="stack inventory-page">
+    <section class={['stack inventory-page', subpage.value === 'entries' && 'stock-entries-page']}>
       <h1 class="sr-only">Inventory</h1>
       <div class="catalog-toolbar inventory-toolbar">
         <nav class="row catalog-tabs" aria-label="Inventory pages">
@@ -194,7 +195,7 @@ export const Inventory = component$<{
           </Button>
         </nav>
         {subpage.value !== 'lots' && (
-          <div class="row filters catalog-filters">
+          <ListFilters title="Filter inventory" count={Number(Boolean(query))} class="catalog-filters">
             <label class="field catalog-search input-with-icon">
               <span class="sr-only">Search inventory</span>
               <Icon name="search" />
@@ -213,7 +214,7 @@ export const Inventory = component$<{
                 <Icon name="close" />
               </Button>
             )}
-          </div>
+          </ListFilters>
         )}
       </div>
       {!showForm.value && !lotEditor.value && subpage.value !== 'lots' && (
@@ -625,43 +626,45 @@ export const Inventory = component$<{
                   <ul class="mobile-records virtual-records" aria-label="Stock entries">
                     <li aria-hidden="true" style={{ height: `${historyScroll.range.value.before}px` }} />
                     {historyRows.map((entry) => (
-                      <li class="mobile-record" key={entry.id} data-virtual-id={entry.id}>
-                        <div class="mobile-record-head">
-                          <ProductLabel
-                            name={variantsById.get(entry.variantId)?.label || 'Unknown variant'}
-                            image={variantsById.get(entry.variantId)?.image}
-                          >
-                            <strong>{variantsById.get(entry.variantId)?.label || 'Unknown variant'}</strong>
-                            <span class="inventory-row-meta muted">{entry.date.slice(0, 10)}</span>
-                          </ProductLabel>
-                          <Badge>{entry.type}</Badge>
-                        </div>
-                        <dl class="mobile-record-values">
-                          <div>
-                            <dt>On-hand change</dt>
-                            <dd>{signedQuantity(entry.onHandDelta)}</dd>
+                      <li class="stock-entry-row" key={entry.id} data-virtual-id={entry.id}>
+                        <article class="mobile-record stock-entry-card">
+                          <div class="mobile-record-head">
+                            <ProductLabel
+                              name={variantsById.get(entry.variantId)?.label || 'Unknown variant'}
+                              image={variantsById.get(entry.variantId)?.image}
+                            >
+                              <strong>{variantsById.get(entry.variantId)?.label || 'Unknown variant'}</strong>
+                              <span class="inventory-row-meta muted">{entry.date.slice(0, 10)}</span>
+                            </ProductLabel>
+                            <Badge>{entry.type}</Badge>
                           </div>
-                          <div>
-                            <dt>Unavailable change</dt>
-                            <dd>{signedQuantity(entry.unavailableDelta)}</dd>
+                          <dl class="mobile-record-values">
+                            <div>
+                              <dt>On-hand change</dt>
+                              <dd>{signedQuantity(entry.onHandDelta)}</dd>
+                            </div>
+                            <div>
+                              <dt>Unavailable change</dt>
+                              <dd>{signedQuantity(entry.unavailableDelta)}</dd>
+                            </div>
+                          </dl>
+                          {entry.notes && <p>{entry.notes}</p>}
+                          <div class="stock-entry-lot">
+                            <span>
+                              {data['Purchase Lots'].find((lot) => lot.id === entry.purchaseLotId)?.name ||
+                                'No purchase lot'}
+                            </span>
+                            <Button
+                              class="secondary compact catalog-icon-button"
+                              disabled={busy}
+                              title="Change purchase lot"
+                              aria-label={`Change purchase lot for ${variantsById.get(entry.variantId)?.label || 'stock entry'}`}
+                              onClick$={() => changeLot(entry)}
+                            >
+                              <Icon name="edit" />
+                            </Button>
                           </div>
-                        </dl>
-                        {entry.notes && <p>{entry.notes}</p>}
-                        <div class="row">
-                          <span>
-                            {data['Purchase Lots'].find((lot) => lot.id === entry.purchaseLotId)?.name ||
-                              'No purchase lot'}
-                          </span>
-                          <Button
-                            class="secondary compact catalog-icon-button"
-                            disabled={busy}
-                            title="Change purchase lot"
-                            aria-label={`Change purchase lot for ${variantsById.get(entry.variantId)?.label || 'stock entry'}`}
-                            onClick$={() => changeLot(entry)}
-                          >
-                            <Icon name="edit" />
-                          </Button>
-                        </div>
+                        </article>
                       </li>
                     ))}
                     <li aria-hidden="true" style={{ height: `${historyScroll.range.value.after}px` }} />

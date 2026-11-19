@@ -1,3 +1,4 @@
+import { ListFilters } from '../../shared/ui/list-filters';
 import { orderSubtotal, orderTotal } from '../../domain/order-totals';
 import { decimalAmount } from '../../shared/lib/format';
 import { workbookCurrency, workbookNumberFormat } from '../../domain/settings';
@@ -289,7 +290,11 @@ export const Customers = component$<Props>(({ data, busy, error, onCommit$ }) =>
                   {shown.length} contacts · {data.Customers.length} saved
                 </p>
               </div>
-              <div class="row filters customer-filters">
+              <ListFilters
+                title="Filter customers"
+                count={statuses.value.length + Number(Boolean(query))}
+                class="customer-filters"
+              >
                 <label class="field">
                   Search customers
                   <Input
@@ -314,7 +319,7 @@ export const Customers = component$<Props>(({ data, busy, error, onCommit$ }) =>
                     statuses.value = value;
                   }}
                 />
-              </div>
+              </ListFilters>
             </div>
             <div class="component-scroll">
               <Table class="scroll-rows customers-table" aria-label="Customers">

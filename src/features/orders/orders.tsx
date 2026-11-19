@@ -1,3 +1,4 @@
+import { ListFilters } from '../../shared/ui/list-filters';
 import { lineSubtotal, orderSubtotal, orderTotal } from '../../domain/order-totals';
 import { money } from '../../shared/lib/format';
 import { workbookCurrency, workbookNumberFormat } from '../../domain/settings';
@@ -652,7 +653,7 @@ export const Orders = component$<OrdersProps>(({ data, busy, onCommit$, saveErro
       <Panel class="stack orders-list" id="order-list" role="region" aria-labelledby="order-list-title">
         <div class="orders-list-header">
           <h2 id="order-list-title">Order list</h2>
-          <div class="row filters">
+          <ListFilters title="Filter orders" count={statusFilter.value.length + Number(Boolean(query))}>
             <label class="field">
               Search orders
               <Input
@@ -673,7 +674,7 @@ export const Orders = component$<OrdersProps>(({ data, busy, onCommit$, saveErro
                 statusFilter.value = value;
               }}
             />
-          </div>
+          </ListFilters>
         </div>
         {visible.length > 0 ? (
           <>
