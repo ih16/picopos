@@ -7,7 +7,7 @@ const scrollAreas = [
   '.product-list-scroll-frame > .product-grid',
   '.component-scroll',
   '.scroll-rows > tbody',
-  '.order-draft-form',
+  '.order-draft-form > .form-accordion',
   '.ui-modal-content',
 ].join(',');
 

@@ -134,3 +134,36 @@ test('app confirmation uses all lines for a SKU and rejects shortages', () => {
   data['Stock Entries'][0].onHandDelta = 2;
   assert.throws(() => validateChanges(data, [confirm]), /insufficient available stock/);
 });
+
+test('payment and return edits reject values the workbook cannot record', () => {
+  const data = fixture('Shipped');
+  const order = data.Orders[0];
+  assert.throws(
+    () =>
+      validateChanges(data, [
+        { tab: 'Orders', row: { ...order, paymentStatus: '' as typeof order.paymentStatus } },
+      ]),
+    /payment status/,
+  );
+  const receipt = {
+    id: 'r1',
+    orderItemId: 'l1',
+    quantity: 1,
+    status: 'Received',
+    condition: 'Damaged',
+    receivedAt: '2026-11-19',
+    notes: '',
+  } as const;
+  validateChanges(data, [{ tab: 'Returns', row: receipt }]);
+  for (const invalid of [
+    { ...receipt, status: 'Invalid' },
+    { ...receipt, status: 'Requested' },
+    { ...receipt, condition: 'Unknown' },
+    { ...receipt, receivedAt: 'invalid' },
+  ]) {
+    assert.throws(
+      () => validateChanges(data, [{ tab: 'Returns', row: invalid as typeof receipt }]),
+      /return|condition/i,
+    );
+  }
+});

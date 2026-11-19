@@ -1,6 +1,6 @@
-import { component$, type QRL } from '@builder.io/qwik';
+import { component$, useSignal, useVisibleTask$, type QRL } from '@builder.io/qwik';
 import { type PendingChange } from '../../domain/outbox';
-import { Button, Disclosure, Panel, SelectField } from '../../shared/ui/controls';
+import { Button, Disclosure, SelectField } from '../../shared/ui/controls';
 import { Icon } from '../../shared/ui/icon';
 
 type SyncSettingsProps = {
@@ -12,6 +12,7 @@ type SyncSettingsProps = {
   expired: boolean;
   syncing: boolean;
   busy: boolean;
+  nextSyncAt?: number;
   lastSyncedAt?: number;
   syncError?: string;
   onSync$: QRL<() => void | Promise<void>>;
@@ -46,6 +47,17 @@ function describeChange({ edits }: PendingChange) {
 }
 
 export const SyncSettings = component$<SyncSettingsProps>((props) => {
+  const now = useSignal(0);
+  useVisibleTask$(({ track, cleanup }) => {
+    if (!track(() => props.nextSyncAt)) return;
+    now.value = Date.now();
+    const timer = window.setInterval(() => (now.value = Date.now()), 1_000);
+    cleanup(() => window.clearInterval(timer));
+  });
+  const seconds =
+    now.value && props.nextSyncAt
+      ? Math.max(0, Math.ceil((props.nextSyncAt - now.value) / 1_000))
+      : undefined;
   const count = props.pending.length;
   const blocked = props.pending.filter((item) => item.issue).length;
   const queueLabel = `${count} queued ${count === 1 ? 'change' : 'changes'}`;
@@ -69,23 +81,15 @@ export const SyncSettings = component$<SyncSettingsProps>((props) => {
                 : 'Ready to sync';
 
   return (
-    <Panel class="stack settings-sync" role="region" aria-label="Sync settings">
-      <div class="panel-heading sync-settings-heading">
-        <div>
-          <h2>Sync settings</h2>
-          <p class="muted" role="status">
-            {status}
-          </p>
-        </div>
-      </div>
-      <SelectField
-        class="sync-settings-interval"
-        label="Minimum sync interval"
-        value={String(props.intervalSeconds)}
-        options={[...props.intervals]}
-        onChange$={props.onIntervalChange$}
-      />
-      <div class="settings-sync-action">
+    <>
+      <div class="row sync-settings-row">
+        <SelectField
+          class="sync-settings-interval"
+          label="Minimum sync interval"
+          value={String(props.intervalSeconds)}
+          options={[...props.intervals]}
+          onChange$={props.onIntervalChange$}
+        />
         <Button
           type="button"
           disabled={props.busy || props.syncing || !props.online}
@@ -100,6 +104,14 @@ export const SyncSettings = component$<SyncSettingsProps>((props) => {
             </span>
           )}
         </Button>
+        <span class="muted" role="status">
+          {status}
+        </span>
+        {seconds !== undefined && (
+          <span class="muted" role="timer">
+            Next sync in {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}
+          </span>
+        )}
       </div>
       {props.syncError && (
         <p class="notice" role="status">
@@ -133,6 +145,6 @@ export const SyncSettings = component$<SyncSettingsProps>((props) => {
           </ul>
         </Disclosure>
       )}
-    </Panel>
+    </>
   );
 });

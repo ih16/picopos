@@ -11,13 +11,17 @@ export const ReceiveReturn = component$<Pick<OrdersProps, 'busy' | 'onCommit$'> 
       <form
         class="row"
         preventdefault:submit
-        onSubmit$={async (_, form) => {
-          const condition = new FormData(form).get('condition') as ReturnCondition;
+        onSubmit$={async () => {
           await onCommit$(
             [
               {
                 tab: 'Returns',
-                row: { ...entry, status: 'Received', condition, receivedAt: new Date().toISOString() },
+                row: {
+                  ...entry,
+                  status: 'Received',
+                  condition: condition.value,
+                  receivedAt: new Date().toISOString(),
+                },
               },
             ],
             [{ tab: 'Returns', row: entry }],

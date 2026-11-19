@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Start in **Settings → Sync settings**. Check connectivity, authorization, pending change count, and **Preview queued changes**. A local save is not proof that Sheets received the change.
+Start in **Settings → Workbook connection**. Check connectivity, authorization, pending change count, and **Preview queued changes**. A local save is not proof that Sheets received the change.
 
 ## Google connection
 

@@ -1,4 +1,12 @@
-import { component$, useContext, useSignal, useVisibleTask$, type QRL, type Signal } from '@builder.io/qwik';
+import {
+  component$,
+  Slot,
+  useContext,
+  useSignal,
+  useVisibleTask$,
+  type QRL,
+  type Signal,
+} from '@builder.io/qwik';
 import {
   getAccessToken,
   isGoogleConfigured,
@@ -273,6 +281,7 @@ export const Connection = component$<ConnectionProps>((props) => {
         </div>
       )}
 
+      <Slot />
       {isGoogleConfigured && !props.offline && !ready.value && !loadingFailed.value && (
         <p class="muted" role="status">
           Loading Google authorization…

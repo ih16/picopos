@@ -757,11 +757,12 @@ export const Catalog = component$<Props>(({ data, busy, error, onCommit$ }) => {
                                         </td>
                                         <td>
                                           <Button
-                                            class="secondary compact"
+                                            class="secondary compact catalog-icon-button"
+                                            title="Edit variant"
                                             aria-label={`Edit variant ${row.sku}`}
                                             onClick$={() => openVariant(row)}
                                           >
-                                            Edit
+                                            <Icon name="edit" />
                                           </Button>
                                         </td>
                                       </tr>
@@ -780,11 +781,12 @@ export const Catalog = component$<Props>(({ data, busy, error, onCommit$ }) => {
                                           <span class="inventory-row-meta sku">{row.sku}</span>
                                         </ProductLabel>
                                         <Button
-                                          class="secondary compact"
+                                          class="secondary compact catalog-icon-button"
+                                          title="Edit variant"
                                           aria-label={`Edit variant ${row.sku}`}
                                           onClick$={() => openVariant(row)}
                                         >
-                                          Edit
+                                          <Icon name="edit" />
                                         </Button>
                                       </div>
                                       <dl class="mobile-record-values">

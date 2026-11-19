@@ -86,7 +86,7 @@ export const BusinessSettings = component$<{
             <p class="muted">Create delivery options. Use a zero rate for pickup.</p>
           </div>
           {values.value.shippingOptions.length > 0 && (
-            <div class="settings-shipping-options" role="region" aria-label="Shipping options" tabIndex={0}>
+            <div class="settings-shipping-options">
               {values.value.shippingOptions.map((option, index) => (
                 <div class="settings-shipping-row" key={option.id}>
                   <label class="field">

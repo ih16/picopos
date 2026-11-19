@@ -30,13 +30,7 @@ import { ReceiveReturn } from './receive-return';
 
 import { countRemaining, dateLabel, quantityLabel, returnLabel } from './order-helpers';
 import type { OrdersProps } from './order-types';
-import type {
-  OrderItem,
-  OrderStatus,
-  PaymentStatus,
-  ReturnCondition,
-  Return as ReturnEntry,
-} from '../../domain/workbook';
+import type { OrderItem, OrderStatus, ReturnCondition, Return as ReturnEntry } from '../../domain/workbook';
 const statusLabels: Record<OrderStatus, string> = {
   Draft: 'Draft',
   'In progress': 'Confirm order',
@@ -97,6 +91,7 @@ export const Orders = component$<OrdersProps>(({ data, busy, onCommit$, saveErro
   }
   const selected = data.Orders.find((order) => order.id === selectedId.value);
   const items = selected ? (itemsByOrder.get(selected.id) ?? []) : [];
+  const itemById = new Map(items.map((item) => [item.id, item]));
   const returns = selected ? (returnsByOrder.get(selected.id) ?? []) : [];
   const returnableItems = items.filter((item) => countRemaining(item, returns) > 0);
   const chosenReturnItem = returnableItems.find((item) => item.id === returnItemId.value);
@@ -212,18 +207,33 @@ export const Orders = component$<OrdersProps>(({ data, busy, onCommit$, saveErro
                   <p>{selected.notes}</p>
                 </div>
               )}
-              <SelectField
-                label="Payment status"
-                value={selected.paymentStatus}
-                disabled={busy}
-                onChange$={async (value) => {
-                  return await onCommit$(
-                    [{ tab: 'Orders', row: { ...selected, paymentStatus: value as PaymentStatus } }],
-                    [{ tab: 'Orders', row: selected }],
-                  );
-                }}
-                options={PAYMENT_STATUSES.map((value) => ({ value, label: value }))}
-              />
+              <fieldset class="payment-status-tiles" disabled={busy}>
+                <legend>Payment status</legend>
+                <div class="row">
+                  {PAYMENT_STATUSES.map((status) => (
+                    <label key={status} class="button secondary compact">
+                      <Input
+                        type="radio"
+                        name={`payment-status-${selected.id}`}
+                        value={status}
+                        checked={selected.paymentStatus === status}
+                        onChange$={async (_, input) => {
+                          const saved = await onCommit$(
+                            [{ tab: 'Orders', row: { ...selected, paymentStatus: status } }],
+                            [{ tab: 'Orders', row: selected }],
+                          );
+                          if (!saved) {
+                            for (const radio of input.closest('fieldset')?.querySelectorAll('input') ?? []) {
+                              radio.checked = radio.value === selected.paymentStatus;
+                            }
+                          }
+                        }}
+                      />
+                      {status}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
             </div>
           </div>
         </Panel>
@@ -388,7 +398,7 @@ export const Orders = component$<OrdersProps>(({ data, busy, onCommit$, saveErro
                         value: item.id,
                         image: products.get(variants.get(item.variantId)?.productId ?? '')?.image,
                         imageName: item.productName,
-                        label: `${item.productName} · ${item.variantName} (${countRemaining(item, returns)} left)`,
+                        label: `${item.productName} · ${item.variantName} · ${item.sku} (${countRemaining(item, returns)} left)`,
                       }))}
                     />
                     <label class="field">
@@ -473,20 +483,19 @@ export const Orders = component$<OrdersProps>(({ data, busy, onCommit$, saveErro
                         <tr key={entry.id}>
                           <td>
                             <ProductLabel
-                              name={
-                                items.find((item) => item.id === entry.orderItemId)?.productName ||
-                                'Order item'
-                              }
+                              name={itemById.get(entry.orderItemId)?.productName || 'Order item'}
                               image={
                                 products.get(
-                                  variants.get(
-                                    items.find((item) => item.id === entry.orderItemId)?.variantId ?? '',
-                                  )?.productId ?? '',
+                                  variants.get(itemById.get(entry.orderItemId)?.variantId ?? '')?.productId ??
+                                    '',
                                 )?.image
                               }
                             >
-                              {items.find((item) => item.id === entry.orderItemId)?.productName ||
-                                'Order item'}
+                              {itemById.get(entry.orderItemId)?.productName || 'Order item'}
+                              <span class="inventory-row-meta muted">
+                                {itemById.get(entry.orderItemId)?.variantName} ·{' '}
+                                {itemById.get(entry.orderItemId)?.sku}
+                              </span>
                             </ProductLabel>
                           </td>
                           <td>{entry.quantity}</td>
@@ -510,21 +519,19 @@ export const Orders = component$<OrdersProps>(({ data, busy, onCommit$, saveErro
                       <article class="mobile-record" key={entry.id}>
                         <div class="mobile-record-head">
                           <ProductLabel
-                            name={
-                              items.find((item) => item.id === entry.orderItemId)?.productName || 'Order item'
-                            }
+                            name={itemById.get(entry.orderItemId)?.productName || 'Order item'}
                             image={
                               products.get(
-                                variants.get(
-                                  items.find((item) => item.id === entry.orderItemId)?.variantId ?? '',
-                                )?.productId ?? '',
+                                variants.get(itemById.get(entry.orderItemId)?.variantId ?? '')?.productId ??
+                                  '',
                               )?.image
                             }
                           >
-                            <strong>
-                              {items.find((item) => item.id === entry.orderItemId)?.productName ||
-                                'Order item'}
-                            </strong>
+                            <strong>{itemById.get(entry.orderItemId)?.productName || 'Order item'}</strong>
+                            <span class="inventory-row-meta muted">
+                              {itemById.get(entry.orderItemId)?.variantName} ·{' '}
+                              {itemById.get(entry.orderItemId)?.sku}
+                            </span>
                           </ProductLabel>
                           <Badge status={entry.status}>{entry.status}</Badge>
                         </div>

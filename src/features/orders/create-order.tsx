@@ -56,7 +56,7 @@ export const CreateOrder = component$<OrdersProps>(({ data, busy, onCommit$, sav
   });
 
   return (
-    <div class="stack record-page">
+    <div class="stack record-page new-order-page">
       <div class="order-header">
         <h1>New order</h1>
       </div>
@@ -155,7 +155,7 @@ export const CreateOrder = component$<OrdersProps>(({ data, busy, onCommit$, sav
         }}
       >
         <Accordion.Root multiple collapsible class="form-accordion stack">
-          <Accordion.Item value="customer" bind:open={customerSectionOpen} class="panel form-section">
+          <Accordion.Item open value="customer" bind:open={customerSectionOpen} class="panel form-section">
             <Accordion.Header>
               <Accordion.Trigger type="button" class="form-section-trigger">
                 <span>Customer</span>
@@ -246,7 +246,7 @@ export const CreateOrder = component$<OrdersProps>(({ data, busy, onCommit$, sav
               </div>
             </Accordion.Content>
           </Accordion.Item>
-          <Accordion.Item value="items" bind:open={itemsSectionOpen} class="panel form-section">
+          <Accordion.Item open value="items" bind:open={itemsSectionOpen} class="panel form-section">
             <Accordion.Header>
               <Accordion.Trigger type="button" class="form-section-trigger">
                 <span>Order items</span>
@@ -395,7 +395,7 @@ export const CreateOrder = component$<OrdersProps>(({ data, busy, onCommit$, sav
               )}
             </Accordion.Content>
           </Accordion.Item>
-          <Accordion.Item value="payment" bind:open={paymentSectionOpen} class="panel form-section">
+          <Accordion.Item open value="payment" bind:open={paymentSectionOpen} class="panel form-section">
             <Accordion.Header>
               <Accordion.Trigger type="button" class="form-section-trigger">
                 <span>Payment, discount and shipping</span>

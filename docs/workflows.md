@@ -1,6 +1,6 @@
 # Daily workflows
 
-Start with [setup](../README.md#connect-google-sheets). Connected saves update this browser first; check **Settings → Sync settings** to confirm that changes reached Sheets. The demo uses in-memory data and resets when you leave or reload.
+Start with [setup](../README.md#connect-google-sheets). Connected saves update this browser first; check **Settings → Workbook connection** to confirm that changes reached Sheets. The demo uses in-memory data and resets when you leave or reload.
 
 ## Catalog and customers
 

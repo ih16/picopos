@@ -83,7 +83,7 @@ Browser                                      Google Sheets
 
 A save updates the local workbook and inventory immediately, then queues the change for sync. After the first successful connection, the browser retains the workbook and pending edits in OPFS. Production builds also cache the app shell after an online visit so it can reopen offline; the development server does not provide offline shell caching.
 
-In **Settings → Sync settings**, choose the minimum interval between automatic syncs. The default is 30 seconds. While the app is open, sync checks for Sheet edits and uploads queued changes in batches. Returning to the tab or coming back online triggers sync when due. Use **Sync now** for an immediate attempt, or **Preview queued changes** to inspect pending edits and validation issues.
+In **Settings → Workbook connection**, choose the minimum interval between automatic syncs. The default is 30 seconds. While the app is open, sync checks for Sheet edits and uploads queued changes in batches. Returning to the tab or coming back online triggers sync when due. Use **Sync now** for an immediate attempt, or **Preview queued changes** to inspect pending edits and validation issues.
 
 If both sides edit the same field before sync, the picopos value wins. Changes to other fields in Sheets are preserved. Changes that reference deleted records or fail validation stay queued for review.
 

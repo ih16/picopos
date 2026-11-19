@@ -23,12 +23,12 @@ import { WorkspacePreview } from './workspace-preview';
 const PAGES = ['Dashboard', 'Orders', 'Catalog', 'Customers', 'Inventory'] as const;
 
 const Brand = component$(() => (
-  <div class="brand">
+  <span class="brand">
     <span class="brand-mark" aria-hidden="true" />
     <span class="brand-wordmark">
       pico<span>pos</span>
     </span>
-  </div>
+  </span>
 ));
 
 export default component$(() => {
@@ -48,6 +48,7 @@ export default component$(() => {
     expired,
     online,
     syncInterval,
+    nextSyncAt,
     needsReconnect,
     connectionBusy,
     issues,
@@ -62,8 +63,10 @@ export default component$(() => {
     leaveDemo,
   } = useWorkbook(error, navigation);
   const loginOpen = useSignal(false);
+  const connectRequested = useSignal(false);
   const pickerActive = useSignal(false);
   const setupData = useSignal(emptyWorkbook());
+  const pageData = useComputed$(() => workbook.value?.data ?? setupData.value);
   const cancelSetup = $(() => {
     if (connectionBusy.value) {
       loginOpen.value = true;
@@ -78,7 +81,9 @@ export default component$(() => {
     const current = track(() => workbook.value);
     const choosing = track(() => pickerActive.value);
     const setup = track(() => setupSelection.value);
-    loginOpen.value = !choosing && (Boolean(setup) || (!checking && !selection && !current));
+    const requested = track(() => connectRequested.value);
+    if (current || selection) connectRequested.value = false;
+    loginOpen.value = !choosing && (Boolean(setup) || (requested && !checking && !selection && !current));
   });
   const customerLabels = useComputed$(() => {
     const labels = new Map<string, string>();
@@ -111,8 +116,137 @@ export default component$(() => {
       error={needsReconnect.value && local.value ? undefined : authError.value}
       onSelect$={connect}
       onDemo$={demo.value ? undefined : openDemo}
-    />
+    >
+      {!demo.value && local.value && (
+        <SyncSettings
+          intervalSeconds={syncInterval.value}
+          intervals={SYNC_INTERVALS}
+          onIntervalChange$={changeSyncInterval}
+          pending={local.value.pending}
+          online={online.value}
+          expired={expired.value}
+          syncing={syncing.value}
+          busy={busy.value}
+          nextSyncAt={nextSyncAt.value}
+          lastSyncedAt={local.value.lastSyncedAt}
+          syncError={syncError.value}
+          onSync$={syncNow}
+          onDiscard$={discardChange}
+        />
+      )}
+    </Connection>
   );
+
+  const renderPages = (workbookId: string) =>
+    openPages.value.map((tabKey) => {
+      const item = parseScreenRoute(tabPaths[tabKey]).page;
+      return (
+        <WorkspacePage
+          key={`${workbookId}-${tabKey}`}
+          tabKey={tabKey}
+          path={tabPaths[tabKey]}
+          active={screenTabKey(route.value) === tabKey}
+          label={tabLabel(tabKey)}
+          onNavigate$={navigate}
+          onClose$={closePage}
+        >
+          {item === 'Dashboard' && <Dashboard data={pageData.value} />}
+          {item === 'Orders' && (
+            <Orders
+              key={workbookId}
+              data={pageData.value}
+              busy={busy.value}
+              saveError={error.value}
+              onCommit$={commit}
+            />
+          )}
+          {item === 'Catalog' && (
+            <Catalog
+              key={workbookId}
+              data={pageData.value}
+              busy={busy.value}
+              error={error.value}
+              onCommit$={commit}
+            />
+          )}
+          {item === 'Customers' && (
+            <Customers
+              key={workbookId}
+              data={pageData.value}
+              busy={busy.value}
+              error={error.value}
+              onCommit$={commit}
+            />
+          )}
+          {item === 'Inventory' && (
+            <Inventory
+              key={workbookId}
+              data={pageData.value}
+              busy={busy.value}
+              saveError={error.value}
+              onCommit$={commit}
+            />
+          )}
+          {item === 'Connection' && (
+            <>
+              <div class="settings-title">
+                <h1>Settings</h1>
+              </div>
+              <div class="settings-grid">
+                <BusinessSettings
+                  data={pageData.value}
+                  busy={busy.value}
+                  error={error.value}
+                  onCommit$={commit}
+                />
+                <div class="panel settings-connection stack">
+                  {connection}
+                  {!demo.value && (
+                    <p class="muted">
+                      Offline data stays available in this browser profile. On a shared device, sync your
+                      changes and disconnect when finished. Disconnect removes this workbook’s local copy;
+                      unsynced changes must be synced first.
+                    </p>
+                  )}
+                  <ActionBar label="Workbook actions" class="settings-workbook-actions">
+                    {!demo.value && (
+                      <a
+                        class="button secondary"
+                        title="Open sheet in a new tab"
+                        href={`https://docs.google.com/spreadsheets/d/${encodeURIComponent(workbookId)}/edit`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <Icon name="external" /> Go to sheet
+                      </a>
+                    )}
+                    {!demo.value ? (
+                      <Button
+                        class="secondary disconnect"
+                        type="button"
+                        disabled={connectionBusy.value}
+                        onClick$={disconnect}
+                      >
+                        Disconnect workbook
+                      </Button>
+                    ) : (
+                      <Button
+                        class="secondary disconnect"
+                        type="button"
+                        disabled={busy.value}
+                        onClick$={leaveDemo}
+                      >
+                        Leave demo
+                      </Button>
+                    )}
+                  </ActionBar>
+                </div>
+              </div>
+            </>
+          )}
+        </WorkspacePage>
+      );
+    });
 
   return (
     <div class="app-shell">
@@ -123,7 +257,7 @@ export default component$(() => {
         onClose$={async () => {
           if (pickerActive.value) return;
           if (setupSelection.value) await cancelSetup();
-          else if (!checkingSavedSession.value && !saved.value && !workbook.value) await openDemo();
+          else connectRequested.value = false;
         }}
       >
         {setupSelection.value ? (
@@ -157,7 +291,39 @@ export default component$(() => {
         )}
       </Modal>
       <ReconnectNotice />
-      {!workbook.value && !fresh && (
+      {!saved.value && !workbook.value && !loginOpen.value && !pickerActive.value && (
+        <main class="workspace-welcome stack">
+          <h1>
+            <Brand />
+          </h1>
+          <div class="welcome-intro">
+            <h2>Your shop, powered by Google Sheets</h2>
+            <p class="muted">
+              Track stock, customers, and orders in a spreadsheet you control. Connect your workbook with your
+              Google account or explore picopos with sample data.
+            </p>
+          </div>
+          <div class="row">
+            <Button
+              disabled={!fresh}
+              onClick$={() => {
+                connectRequested.value = true;
+              }}
+            >
+              Connect a workbook
+            </Button>
+            <Button class="secondary" disabled={!fresh} onClick$={openDemo}>
+              Try the demo
+            </Button>
+          </div>
+          <nav class="row" aria-label="About picopos">
+            <a href="/about.html">About picopos</a>
+            <a href="/privacy.html">Privacy policy</a>
+            <a href="/terms.html">Terms of service</a>
+          </nav>
+        </main>
+      )}
+      {!workbook.value && saved.value && (
         <div class="workspace-loading" role="status">
           {checkingSavedSession.value
             ? 'Opening your workspace…'
@@ -293,7 +459,12 @@ export default component$(() => {
           <div class="workspace-main">
             <main class="main-content stack" aria-label={page.value}>
               {demo.value && (
-                <p class="notice demo-notice">Demo changes last until you reload or leave the demo.</p>
+                <div class="notice demo-notice">
+                  <span>Demo changes last until you reload or leave the demo.</span>
+                  <Button class="secondary compact" type="button" disabled={busy.value} onClick$={leaveDemo}>
+                    Leave Demo
+                  </Button>
+                </div>
               )}
               {error.value && (
                 <p class="notice error" role="alert">
@@ -314,132 +485,7 @@ export default component$(() => {
                 </Panel>
               )}
               {!current && <WorkspacePreview />}
-              {openPages.value.map((tabKey) => {
-                if (!current) return null;
-                const item = parseScreenRoute(tabPaths[tabKey]).page;
-                return (
-                  <WorkspacePage
-                    key={`${current.id}-${tabKey}`}
-                    tabKey={tabKey}
-                    path={tabPaths[tabKey]}
-                    active={screenTabKey(route.value) === tabKey}
-                    label={tabLabel(tabKey)}
-                    onNavigate$={navigate}
-                    onClose$={closePage}
-                  >
-                    {item === 'Dashboard' && <Dashboard data={current.data} />}
-                    {item === 'Orders' && (
-                      <Orders
-                        key={current.id}
-                        data={current.data}
-                        busy={busy.value}
-                        saveError={error.value}
-                        onCommit$={commit}
-                      />
-                    )}
-                    {item === 'Catalog' && (
-                      <Catalog
-                        key={current.id}
-                        data={current.data}
-                        busy={busy.value}
-                        error={error.value}
-                        onCommit$={commit}
-                      />
-                    )}
-                    {item === 'Customers' && (
-                      <Customers
-                        key={current.id}
-                        data={current.data}
-                        busy={busy.value}
-                        error={error.value}
-                        onCommit$={commit}
-                      />
-                    )}
-                    {item === 'Inventory' && (
-                      <Inventory
-                        key={current.id}
-                        data={current.data}
-                        busy={busy.value}
-                        saveError={error.value}
-                        onCommit$={commit}
-                      />
-                    )}
-                    {item === 'Connection' && (
-                      <>
-                        <div class="settings-title">
-                          <h1>Settings</h1>
-                        </div>
-                        <div class="settings-grid">
-                          <BusinessSettings
-                            data={current.data}
-                            busy={busy.value}
-                            error={error.value}
-                            onCommit$={commit}
-                          />
-                          {!demo.value && local.value && (
-                            <SyncSettings
-                              intervalSeconds={syncInterval.value}
-                              intervals={SYNC_INTERVALS}
-                              onIntervalChange$={changeSyncInterval}
-                              pending={local.value.pending}
-                              online={online.value}
-                              expired={expired.value}
-                              syncing={syncing.value}
-                              busy={busy.value}
-                              lastSyncedAt={local.value.lastSyncedAt}
-                              syncError={syncError.value}
-                              onSync$={syncNow}
-                              onDiscard$={discardChange}
-                            />
-                          )}
-                          <div class="panel settings-connection stack">
-                            {connection}
-                            {!demo.value && (
-                              <p class="muted">
-                                Offline data stays available in this browser profile. On a shared device, sync
-                                your changes and disconnect when finished. Disconnect removes this workbook’s
-                                local copy; unsynced changes must be synced first.
-                              </p>
-                            )}
-                            <ActionBar label="Workbook actions" class="settings-workbook-actions">
-                              {!demo.value && (
-                                <a
-                                  class="button secondary"
-                                  title="Open sheet in a new tab"
-                                  href={`https://docs.google.com/spreadsheets/d/${encodeURIComponent(current.id)}/edit`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                >
-                                  <Icon name="external" /> Go to sheet
-                                </a>
-                              )}
-                              {!demo.value ? (
-                                <Button
-                                  class="secondary disconnect"
-                                  type="button"
-                                  disabled={connectionBusy.value}
-                                  onClick$={disconnect}
-                                >
-                                  Disconnect workbook
-                                </Button>
-                              ) : (
-                                <Button
-                                  class="secondary disconnect"
-                                  type="button"
-                                  disabled={busy.value}
-                                  onClick$={leaveDemo}
-                                >
-                                  Leave demo
-                                </Button>
-                              )}
-                            </ActionBar>
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </WorkspacePage>
-                );
-              })}
+              {current && renderPages(current.id)}
             </main>
           </div>
         </div>

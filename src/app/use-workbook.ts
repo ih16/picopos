@@ -81,6 +81,7 @@ export function useWorkbook(error: Signal<string>, navigation: ReturnType<typeof
   const expired = useSignal(false);
   const online = useSignal(true);
   const syncInterval = useSignal(DEFAULT_SYNC_INTERVAL_SECONDS);
+  const nextSyncAt = useSignal<number>();
   const lastAttempt = useSignal(0);
   const needsReconnect = useComputed$(() => online.value && expired.value && !demo.value && !syncing.value);
   const reconnectDismissed = useSignal(false);
@@ -320,13 +321,17 @@ export function useWorkbook(error: Signal<string>, navigation: ReturnType<typeof
       );
       if (lastSync === undefined || !ready) return;
       const due = Math.max(lastSync, attempt) + interval * 1_000;
-      const timer = window.setTimeout(
-        () => {
-          if (document.visibilityState === 'visible') void refresh();
-        },
-        Math.max(1_000, due - Date.now()),
-      );
-      cleanup(() => window.clearTimeout(timer));
+      const now = Date.now();
+      const delay = Math.max(1_000, due - now);
+      nextSyncAt.value = now + delay;
+      const timer = window.setTimeout(() => {
+        nextSyncAt.value = undefined;
+        if (document.visibilityState === 'visible') void refresh();
+      }, delay);
+      cleanup(() => {
+        window.clearTimeout(timer);
+        nextSyncAt.value = undefined;
+      });
     },
     { strategy: 'document-ready' },
   );
@@ -500,6 +505,7 @@ export function useWorkbook(error: Signal<string>, navigation: ReturnType<typeof
     expired,
     online,
     syncInterval,
+    nextSyncAt,
     needsReconnect,
     connectionBusy,
     issues,

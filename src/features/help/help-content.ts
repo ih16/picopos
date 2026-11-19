@@ -20,7 +20,7 @@ const topics: HelpTopic[] = [
       {
         title: 'Connect Google Sheets',
         paragraphs: [
-          'From the welcome screen or Settings, open Create a new workbook, enter your shop name, and select Create workbook. To connect a file you already use, select Choose an existing workbook. New files are named “picopos · Your shop”. When you connect a workbook for the first time and it has no picopos settings, choose a currency, shipping options, and a sync interval before finishing setup. The sync interval applies to this browser. The chooser starts by searching for “picopos”. If an older workbook has a different name, search for it by filename. Sign in with an account that can edit the file. picopos creates its managed tabs and leaves unrelated tabs alone.',
+          'Select Connect a workbook on the welcome screen, or go to Settings. Open Create a new workbook, enter your shop name, and select Create workbook. To connect a file you already use, select Choose an existing workbook. New files are named “picopos · Your shop”. When you connect a workbook for the first time and it has no picopos settings, choose a currency, shipping options, and a sync interval before finishing setup. The sync interval applies to this browser. The chooser starts by searching for “picopos”. If an older workbook has a different name, search for it by filename. Sign in with an account that can edit the file. picopos creates its managed tabs and leaves unrelated tabs alone.',
           'Your workbook holds products, variants, customers, orders, order items, returns, stock entries, purchase lots, categories, and settings. Keep managed headers and record IDs intact when editing Sheets directly.',
         ],
       },
@@ -342,7 +342,7 @@ const topics: HelpTopic[] = [
       {
         title: 'Automatic and manual sync',
         paragraphs: [
-          'Open Settings → Sync settings to see connection and queue status. Choose the minimum sync interval or use Sync now for an immediate attempt while online. The default automatic interval is 30 seconds.',
+          'Open Settings → Workbook connection to see connection and queue status. Choose the minimum sync interval or use Sync now for an immediate attempt while online. The default automatic interval is 30 seconds.',
           'Sync runs while the app is open. Returning to the tab or coming back online triggers a check when due. It reads Sheet changes and uploads queued edits in batches; it does not run continuously after the app closes.',
         ],
       },

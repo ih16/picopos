@@ -243,6 +243,7 @@ export function validateChanges(data: WorkbookData, changes: RowChange[]) {
     if (change.tab === 'Customers' && !change.row.name.trim()) throw new Error('Enter a customer name.');
     if (change.tab === 'Orders') {
       const order = change.row;
+      if (!PAYMENT_STATUSES.includes(order.paymentStatus)) throw new Error('Choose a valid payment status.');
       if (order.customerId && !next.Customers.some((customer) => customer.id === order.customerId))
         throw new Error('Choose an existing customer.');
       const previous = data.Orders.find((row) => row.id === order.id);
@@ -302,7 +303,15 @@ export function validateChanges(data: WorkbookData, changes: RowChange[]) {
         throw new Error('Returns require a shipped order item.');
       if (!Number.isSafeInteger(itemReturn.quantity) || itemReturn.quantity <= 0)
         throw new Error('Enter a positive whole return quantity.');
-      if (itemReturn.status === 'Received' && (!itemReturn.condition || !itemReturn.receivedAt)) {
+      if (!RETURN_STATUSES.includes(itemReturn.status)) throw new Error('Choose a valid return status.');
+      if (itemReturn.status === 'Requested' && (itemReturn.condition || itemReturn.receivedAt))
+        throw new Error('Record the condition and date when the return is received.');
+      if (
+        itemReturn.status === 'Received' &&
+        (!itemReturn.condition ||
+          !RETURN_CONDITIONS.includes(itemReturn.condition) ||
+          !Number.isFinite(Date.parse(itemReturn.receivedAt)))
+      ) {
         throw new Error('Record the condition and date for the received return.');
       }
       const alreadyReceived = data.Returns.find((row) => row.id === itemReturn.id)?.status === 'Received';
