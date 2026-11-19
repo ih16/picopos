@@ -251,6 +251,7 @@ export default component$(() => {
   return (
     <div class="app-shell">
       <Modal
+        dismissLabel={setupSelection.value ? undefined : 'Close'}
         open={loginOpen}
         title={setupSelection.value ? 'Set up your workbook' : 'Welcome to picopos'}
         class={setupSelection.value ? 'login-modal workbook-setup-modal' : 'login-modal'}
@@ -261,25 +262,24 @@ export default component$(() => {
         }}
       >
         {setupSelection.value ? (
-          <div class="stack">
+          <BusinessSettings
+            data={setupData.value}
+            busy={connectionBusy.value || !online.value}
+            error={!online.value ? 'Go online to finish workbook setup.' : authError.value}
+            setup={{
+              interval: syncInterval.value,
+              onFinish$: $(async (settings, interval) => {
+                const selection = setupSelection.value;
+                if (selection) await connect(selection, { settings, interval });
+              }),
+              onCancel$: cancelSetup,
+            }}
+          >
             <p class="muted">
               Choose the starting settings for <strong>{setupSelection.value.name}</strong>. You can change
               them later in Settings.
             </p>
-            <BusinessSettings
-              data={setupData.value}
-              busy={connectionBusy.value || !online.value}
-              error={!online.value ? 'Go online to finish workbook setup.' : authError.value}
-              setup={{
-                interval: syncInterval.value,
-                onFinish$: $(async (settings, interval) => {
-                  const selection = setupSelection.value;
-                  if (selection) await connect(selection, { settings, interval });
-                }),
-                onCancel$: cancelSetup,
-              }}
-            />
-          </div>
+          </BusinessSettings>
         ) : (
           <div class="stack">
             <div class="login-intro">
@@ -380,7 +380,7 @@ export default component$(() => {
             </span>
           </Button>
         </header>
-        <Modal open={mobileTabsOpen} title="Open tabs" class="mobile-tabs-sidebar">
+        <Modal dismissLabel="Done" open={mobileTabsOpen} title="Open tabs" class="mobile-tabs-sidebar">
           <nav class="mobile-workspace-tabs" aria-label="Open pages">
             {openPages.value.map((item) => (
               <div key={item} class={['workspace-tab', screenTabKey(route.value) === item && 'active']}>
@@ -419,7 +419,12 @@ export default component$(() => {
                 <Button
                   unstyled
                   key={item}
-                  class={['nav-item', page.value === item && 'selected']}
+                  title={item === 'Connection' ? 'Settings' : item === 'Catalog' ? 'Products' : item}
+                  class={[
+                    'nav-item',
+                    item === 'Connection' && 'desktop-settings',
+                    page.value === item && 'selected',
+                  ]}
                   aria-current={page.value === item ? 'page' : undefined}
                   onClick$={() => openPage(item)}
                 >
@@ -442,6 +447,43 @@ export default component$(() => {
                 </Button>
               ))}
             </nav>
+            <div class="mobile-nav-more">
+              <Button
+                unstyled
+                class={['nav-item', page.value === 'Connection' && 'selected']}
+                aria-label="More options"
+                popovertarget="mobile-nav-options"
+              >
+                <Icon name="more" />
+              </Button>
+              <nav
+                id="mobile-nav-options"
+                class="mobile-nav-options"
+                popover="auto"
+                aria-label="More options"
+              >
+                <Button
+                  unstyled
+                  class="nav-item"
+                  aria-current={page.value === 'Connection' ? 'page' : undefined}
+                  popovertarget="mobile-nav-options"
+                  popovertargetaction="hide"
+                  onClick$={() => openPage('Connection')}
+                >
+                  <Icon name="settings" /> Settings
+                </Button>
+                <a
+                  class="nav-item"
+                  href="/help/"
+                  target="_blank"
+                  rel="noopener"
+                  aria-label="Help (opens in a new tab)"
+                  onClick$={(_, link) => link.closest<HTMLElement>('[popover]')?.hidePopover()}
+                >
+                  <Icon name="help" /> Help
+                </a>
+              </nav>
+            </div>
             <footer class="workspace-sidebar-footer">
               <a
                 class="nav-item"
@@ -460,7 +502,7 @@ export default component$(() => {
             <main class="main-content stack" aria-label={page.value}>
               {demo.value && (
                 <div class="notice demo-notice">
-                  <span>Demo changes last until you reload or leave the demo.</span>
+                  <span>Demo changes reset on reload or exit.</span>
                   <Button class="secondary compact" type="button" disabled={busy.value} onClick$={leaveDemo}>
                     Leave Demo
                   </Button>

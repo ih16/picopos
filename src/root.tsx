@@ -3,10 +3,13 @@ import { QwikCityProvider, RouterOutlet } from '@builder.io/qwik-city';
 import './styles/app.css';
 import { watchActionBarClearance } from './shared/lib/action-bar-clearance';
 
+import { watchTouchTooltips } from './shared/lib/touch-tooltip';
+
 export default component$(() => {
   useVisibleTask$(
     ({ cleanup }) => {
       cleanup(watchActionBarClearance());
+      cleanup(watchTouchTooltips());
       if (import.meta.env.PROD && window.isSecureContext && 'serviceWorker' in navigator) {
         void navigator.serviceWorker
           .register('/picopos-service-worker.js', { updateViaCache: 'none' })

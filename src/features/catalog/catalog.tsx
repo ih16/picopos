@@ -13,6 +13,7 @@ import {
 } from '../../domain/workbook';
 import {
   ActionBar,
+  EditorForm,
   Badge,
   Button,
   Input,
@@ -21,6 +22,7 @@ import {
   Panel,
   SelectField,
   Table,
+  Switch,
   Textarea,
 } from '../../shared/ui/controls';
 import { Icon } from '../../shared/ui/icon';
@@ -72,7 +74,6 @@ export const Catalog = component$<Props>(({ data, busy, error, onCommit$ }) => {
   const optionError = useSignal('');
   const productEditKey = useSignal('');
   const photoProcessing = useSignal(false);
-  const variantSaved = useSignal('');
 
   const categoryNames = new Map(
     data.Categories.map(({ id }) => [
@@ -170,7 +171,6 @@ export const Catalog = component$<Props>(({ data, busy, error, onCommit$ }) => {
         ? item.price
         : (data.Variants.find((row) => row.productId === item.productId && row.active)?.price ?? item.price),
     };
-    variantSaved.value = '';
     const names = optionNamesOf(data.Products.find((row) => row.id === item.productId)?.optionNames ?? '');
     variantOptions.value = readVariantOptions(names, item.optionValues);
     editor.value = 'variant';
@@ -259,7 +259,7 @@ export const Catalog = component$<Props>(({ data, busy, error, onCommit$ }) => {
     if (await onCommit$(changes, editBase.value)) editorOpen.value = false;
   });
 
-  const saveVariant = $(async (addAnother = false) => {
+  const saveVariant = $(async () => {
     attemptedSave.value = false;
     optionError.value = '';
     const updateValues =
@@ -277,18 +277,7 @@ export const Catalog = component$<Props>(({ data, busy, error, onCommit$ }) => {
       sku: variant.value.sku.trim(),
       optionValues: updateValues && values.length ? values.join(optionSeparator) : variant.value.optionValues,
     };
-    if (await onCommit$([{ tab: 'Variants', row }], editBase.value)) {
-      if (addAnother) {
-        variant.value = { ...row, id: '', sku: '' };
-        variantOptions.value = variantOptions.value.map((option) => ({
-          ...option,
-          originalValue: option.value.trim(),
-        }));
-        editBase.value = [];
-        attemptedSave.value = false;
-        variantSaved.value = `Saved ${row.sku}. Enter a new SKU and adjust the options for the next variant.`;
-      } else editorOpen.value = false;
-    }
+    if (await onCommit$([{ tab: 'Variants', row }], editBase.value)) editorOpen.value = false;
   });
 
   const editorError = optionError.value || (attemptedSave.value ? error : '');
@@ -384,11 +373,11 @@ export const Catalog = component$<Props>(({ data, busy, error, onCommit$ }) => {
         )}
       </div>
       {!editorOpen.value && (
-        <ActionBar label="Catalog actions">
+        <ActionBar class="record-shortcut" label="Catalog actions">
           {subpage.value === 'categories' ? (
-            <Button onClick$={() => openCategory()}>Add category</Button>
+            <Button onClick$={() => openCategory()} icon="category-add" label="Add category" />
           ) : (
-            <Button onClick$={() => openProduct()}>Add product</Button>
+            <Button onClick$={() => openProduct()} icon="product-add" label="Add product" />
           )}
         </ActionBar>
       )}
@@ -396,7 +385,7 @@ export const Catalog = component$<Props>(({ data, busy, error, onCommit$ }) => {
       <Modal open={editorOpen} title={editorTitle}>
         {editorOpen.value && <ReconnectNotice q:slot="notice" />}
         {editor.value === 'category' && (
-          <form class="stack" preventdefault:submit onSubmit$={saveCategory}>
+          <EditorForm class="stack" preventdefault:submit onSubmit$={saveCategory}>
             <label class="field">
               Category name
               <Input
@@ -422,19 +411,20 @@ export const Catalog = component$<Props>(({ data, busy, error, onCommit$ }) => {
               ]}
             />
             {saveError}
-            <ActionBar label="Editor actions">
-              <Button class="secondary" onClick$={closeEditor}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={busy}>
-                {busy ? 'Saving…' : categoryId.value ? 'Update category' : 'Save category'}
-              </Button>
+            <ActionBar q:slot="actions" label="Editor actions">
+              <Button class="secondary" onClick$={closeEditor} icon="close" label="Cancel" />
+              <Button
+                type="submit"
+                disabled={busy}
+                icon="save"
+                label={busy ? 'Saving…' : categoryId.value ? 'Update category' : 'Save category'}
+              />
             </ActionBar>
-          </form>
+          </EditorForm>
         )}
 
         {editor.value === 'product' && (
-          <form class="stack" preventdefault:submit onSubmit$={saveProduct}>
+          <EditorForm class="stack product-editor" preventdefault:submit onSubmit$={saveProduct}>
             <div class="form-grid">
               <label class="field">
                 Product name
@@ -497,20 +487,21 @@ export const Catalog = component$<Props>(({ data, busy, error, onCommit$ }) => {
                           productOptions.value = productOptions.value.filter((row) => row.id !== option.id);
                           optionError.value = '';
                         }}
-                      >
-                        Remove
-                      </Button>
+                        icon="close"
+                        label="Remove"
+                      />
                     )}
                   </div>
                 ))}
-                <Button class="secondary option-add" onClick$={addOption}>
-                  Add another option
-                </Button>
+                <Button
+                  class="secondary option-add"
+                  onClick$={addOption}
+                  icon="plus"
+                  label="Add another option"
+                />
               </fieldset>
             ) : (
-              <Button class="secondary option-add" onClick$={addOption}>
-                Add options
-              </Button>
+              <Button class="secondary option-add" onClick$={addOption} icon="plus" label="Add options" />
             )}
             {!product.value.id && (
               <section class="stack" aria-labelledby="first-variant-title">
@@ -558,36 +549,30 @@ export const Catalog = component$<Props>(({ data, busy, error, onCommit$ }) => {
                 </div>
               </section>
             )}
-            <label class="check">
-              <Input
-                type="checkbox"
-                checked={product.value.active}
-                onChange$={(_, el) => (product.value = { ...product.value, active: el.checked })}
-              />{' '}
-              Active product
-            </label>
+            <Switch
+              key={productEditKey.value}
+              label="Active product"
+              checked={product.value.active}
+              onChange$={(_, input) => {
+                product.value = { ...product.value, active: input.checked };
+              }}
+            />
             {saveError}
-            <ActionBar label="Editor actions">
-              <Button class="secondary" onClick$={closeEditor}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={busy || photoProcessing.value}>
-                {busy ? 'Saving…' : product.value.id ? 'Update product' : 'Save product'}
-              </Button>
+            <ActionBar q:slot="actions" label="Editor actions">
+              <Button class="secondary" onClick$={closeEditor} icon="close" label="Cancel" />
+              <Button
+                type="submit"
+                disabled={busy || photoProcessing.value}
+                icon="save"
+                label={busy ? 'Saving…' : product.value.id ? 'Update product' : 'Save product'}
+              />
             </ActionBar>
-          </form>
+          </EditorForm>
         )}
 
         {editor.value === 'variant' && (
-          <form
-            class="stack"
-            preventdefault:submit
-            onSubmit$={(event) =>
-              saveVariant((event.submitter as HTMLButtonElement | null)?.value === 'add-another')
-            }
-          >
+          <EditorForm class="stack" preventdefault:submit onSubmit$={saveVariant}>
             <p class="muted">{data.Products.find(({ id }) => id === variant.value.productId)?.name}</p>
-            {variantSaved.value && <p role="status">{variantSaved.value}</p>}
             <div class="form-grid">
               <label class="field">
                 SKU
@@ -643,20 +628,16 @@ export const Catalog = component$<Props>(({ data, busy, error, onCommit$ }) => {
               Active variant
             </label>
             {saveError}
-            <ActionBar label="Editor actions">
-              <Button class="secondary" onClick$={closeEditor}>
-                Cancel
-              </Button>
-              {!variant.value.id && (
-                <Button type="submit" value="add-another" class="secondary" disabled={busy}>
-                  Save and add another
-                </Button>
-              )}
-              <Button type="submit" disabled={busy}>
-                {busy ? 'Saving…' : variant.value.id ? 'Update variant' : 'Save variant'}
-              </Button>
+            <ActionBar q:slot="actions" label="Editor actions">
+              <Button class="secondary" onClick$={closeEditor} icon="close" label="Cancel" />
+              <Button
+                type="submit"
+                disabled={busy}
+                icon="save"
+                label={busy ? 'Saving…' : variant.value.id ? 'Update variant' : 'Save variant'}
+              />
             </ActionBar>
-          </form>
+          </EditorForm>
         )}
       </Modal>
 
@@ -837,16 +818,18 @@ export const Catalog = component$<Props>(({ data, busy, error, onCommit$ }) => {
                     class="secondary compact"
                     aria-label={`Edit category ${item.label}`}
                     onClick$={() => openCategory(item.value)}
-                  >
-                    Edit
-                  </Button>
+                    icon="edit"
+                    mobileIconOnly
+                    label="Edit"
+                  />
                   <Button
                     class="secondary compact"
                     aria-label={`Add subcategory to ${item.label}`}
                     onClick$={() => openCategory('', item.value)}
-                  >
-                    Add subcategory
-                  </Button>
+                    icon="plus"
+                    mobileIconOnly
+                    label="Add subcategory"
+                  />
                   <Button
                     class="secondary compact"
                     onClick$={async () => {
@@ -855,9 +838,10 @@ export const Catalog = component$<Props>(({ data, busy, error, onCommit$ }) => {
                       status.value = [];
                       await navigate$('/catalog');
                     }}
-                  >
-                    View products
-                  </Button>
+                    icon="arrow-right"
+                    mobileIconOnly
+                    label="View products"
+                  />
                 </div>
               </Panel>
             ))

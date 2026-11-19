@@ -13,6 +13,7 @@ import {
 } from '../../domain/workbook';
 import {
   ActionBar,
+  EditorForm,
   Badge,
   Button,
   Input,
@@ -55,7 +56,7 @@ const CustomerForm = component$<{
   );
   const attempted = useSignal(false);
   return (
-    <form
+    <EditorForm
       class="stack"
       preventdefault:submit
       onSubmit$={async () => {
@@ -141,17 +142,22 @@ const CustomerForm = component$<{
           {error}
         </p>
       )}
-      <ActionBar label="Customer editor actions">
+      <ActionBar
+        q:slot="actions"
+        class={onCancel$ ? undefined : 'record-shortcut'}
+        label="Customer editor actions"
+      >
         {onCancel$ && (
-          <Button class="secondary" disabled={busy} onClick$={onCancel$}>
-            Cancel
-          </Button>
+          <Button class="secondary" disabled={busy} onClick$={onCancel$} icon="close" label="Cancel" />
         )}
-        <Button type="submit" disabled={busy}>
-          {busy ? 'Saving…' : base.value ? 'Update customer' : 'Save customer'}
-        </Button>
+        <Button
+          type="submit"
+          disabled={busy}
+          icon={onCancel$ ? 'save' : 'customer-edit'}
+          label={busy ? 'Saving…' : base.value ? 'Update customer' : 'Save customer'}
+        />
       </ActionBar>
-    </form>
+    </EditorForm>
   );
 });
 
@@ -349,16 +355,16 @@ export const Customers = component$<Props>(({ data, busy, error, onCommit$ }) =>
             </div>
           </Panel>
           {!editorMounted.value && (
-            <ActionBar label="Customers actions">
+            <ActionBar class="record-shortcut" label="Customers actions">
               <Button
                 disabled={busy}
                 onClick$={() => {
                   editorMounted.value = true;
                   editorOpen.value = true;
                 }}
-              >
-                Add customer
-              </Button>
+                icon="customer-add"
+                label="Add customer"
+              />
             </ActionBar>
           )}
         </>

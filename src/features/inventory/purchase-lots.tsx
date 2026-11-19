@@ -8,7 +8,7 @@ import {
   type RowChange,
   type WorkbookData,
 } from '../../domain/workbook';
-import { ActionBar, Badge, Button, Input, Modal, Panel, Table } from '../../shared/ui/controls';
+import { ActionBar, EditorForm, Badge, Button, Input, Modal, Panel, Table } from '../../shared/ui/controls';
 import { Icon } from '../../shared/ui/icon';
 import { ProductLabel } from '../../shared/ui/product-thumbnail';
 import { ReconnectNotice } from '../auth/connection';
@@ -39,10 +39,8 @@ export const PurchaseLots = component$<{
   return (
     <Panel class="stack" role="region" aria-label="Purchase lots">
       {!open.value && (
-        <ActionBar label="Purchase lot actions">
-          <Button disabled={busy} onClick$={() => edit()}>
-            Add purchase lot
-          </Button>
+        <ActionBar class="record-shortcut" label="Purchase lot actions">
+          <Button disabled={busy} onClick$={() => edit()} icon="lot-add" label="Add purchase lot" />
         </ActionBar>
       )}
       <div class="component-scroll">
@@ -84,10 +82,18 @@ export const PurchaseLots = component$<{
                       <td>
                         <strong>{lot.name}</strong>
                       </td>
-                      <td class="numeric">{decimalAmount(lot.totalAmount, numberFormat)}</td>
-                      <td class="numeric">{lot.totalUnits}</td>
-                      <td class="numeric">{summary.units}</td>
-                      <td class="numeric">{decimalAmount(lot.totalAmount / lot.totalUnits, numberFormat)}</td>
+                      <td class="numeric" data-label={`Purchase (${currency})`}>
+                        {decimalAmount(lot.totalAmount, numberFormat)}
+                      </td>
+                      <td class="numeric" data-label="Purchased units">
+                        {lot.totalUnits}
+                      </td>
+                      <td class="numeric" data-label="Linked units">
+                        {summary.units}
+                      </td>
+                      <td class="numeric" data-label={`Cost per unit (${currency})`}>
+                        {decimalAmount(lot.totalAmount / lot.totalUnits, numberFormat)}
+                      </td>
                       <td>
                         <Badge>
                           {difference === 0
@@ -141,7 +147,7 @@ export const PurchaseLots = component$<{
                                 Sales do not change linked units. Average cost is estimated across all
                                 purchased units.
                               </p>
-                              <Table aria-label={`Stock entries for ${lot.name}`}>
+                              <Table class="lot-entry-table" aria-label={`Stock entries for ${lot.name}`}>
                                 <thead>
                                   <tr>
                                     <th scope="col">Date</th>
@@ -176,15 +182,15 @@ export const PurchaseLots = component$<{
                                               .join(' · ')}
                                           </ProductLabel>
                                         </td>
-                                        <td>{variant?.sku || '—'}</td>
+                                        <td data-label="SKU">{variant?.sku || '—'}</td>
                                         <td>
                                           <Badge>{entry.type}</Badge>
                                         </td>
-                                        <td class="numeric">
+                                        <td class="numeric" data-label="On-hand change">
                                           {entry.onHandDelta > 0 ? '+' : ''}
                                           {entry.onHandDelta}
                                         </td>
-                                        <td class="numeric">
+                                        <td class="numeric" data-label="Unavailable change">
                                           {entry.unavailableDelta > 0 ? '+' : ''}
                                           {entry.unavailableDelta}
                                         </td>
@@ -210,7 +216,7 @@ export const PurchaseLots = component$<{
       </div>
       <Modal open={open} title={base.value ? 'Edit purchase lot' : 'New purchase lot'}>
         {open.value && <ReconnectNotice q:slot="notice" />}
-        <form
+        <EditorForm
           class="stack"
           preventdefault:submit
           onSubmit$={async () => {
@@ -272,21 +278,19 @@ export const PurchaseLots = component$<{
               {error}
             </p>
           )}
-          <ActionBar label="Purchase lot editor actions">
+          <ActionBar q:slot="actions" label="Purchase lot editor actions">
             <Button
               class="secondary"
               disabled={busy}
               onClick$={() => {
                 open.value = false;
               }}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={busy}>
-              Save purchase lot
-            </Button>
+              icon="close"
+              label="Cancel"
+            />
+            <Button type="submit" disabled={busy} icon="save" label="Save purchase lot" />
           </ActionBar>
-        </form>
+        </EditorForm>
       </Modal>
     </Panel>
   );

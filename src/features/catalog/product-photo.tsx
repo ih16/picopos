@@ -61,9 +61,9 @@ export const ProductImageInput = component$<{
               error.value = '';
               await props.onChange$('');
             }}
-          >
-            Remove picture
-          </Button>
+            icon="close"
+            label="Remove picture"
+          />
         </div>
       )}
       {processing.value && (

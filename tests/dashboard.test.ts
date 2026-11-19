@@ -207,10 +207,13 @@ test('sales costs weight earlier purchase receipts by units and leave unknown co
     quantity: 2,
     unitPrice: 30,
   }));
+  data['Order Items'].push({ ...data['Order Items'][0], id: 'unmatched', variantId: 'unknown' });
   const result = dashboardSummary(data, 7, new Date(2026, 10, 18, 12));
   // (10 × $10 + 30 × $20) / 40 × 6 sold units; no future purchases or adjustments.
   assert.equal(result.trend.at(-1).cost, 105);
-  assert.equal(result.trend.at(-1).uncostedUnits, 0);
+  assert.equal(result.trend.at(-1).uncostedUnits, 2);
+  assert.equal(result.trend.at(-1).costedUnits, 8);
+  assert.equal(result.trend.at(-1).costedValue, 62.5 + 3 * 65);
   assert.equal(result.trend.at(-2).cost, null);
   assert.equal(result.trend.at(-2).uncostedUnits, 2);
   assert.equal(result.trend[0].cost, 0);

@@ -1,9 +1,9 @@
-import { component$, useComputed$, useId, useSignal, type QRL } from '@builder.io/qwik';
+import { Slot, component$, useComputed$, useId, useSignal, type QRL } from '@builder.io/qwik';
 import { NUMBER_FORMAT_OPTIONS } from '../../domain/settings';
 import { CURRENCY_OPTIONS } from '../../domain/currencies';
 import { makeId, type RowChange, type WorkbookData } from '../../domain/workbook';
 import { SYNC_INTERVALS } from '../../domain/sync-timing';
-import { ActionBar, Button, Input, Panel, SelectField } from '../../shared/ui/controls';
+import { ActionBar, EditorForm, Button, Input, Panel, SelectField } from '../../shared/ui/controls';
 import { editSetting, prepareSettingsSave, settingsEditorValues, type SettingsDraft } from './settings-draft';
 
 export const BusinessSettings = component$<{
@@ -28,12 +28,7 @@ export const BusinessSettings = component$<{
     : [...CURRENCY_OPTIONS, { value: values.value.currency, label: values.value.currency }];
   return (
     <Panel class="stack settings-business" role="region" aria-label="Currency and shipping">
-      {values.value.shippingError && (
-        <p class="notice error" role="alert">
-          {values.value.shippingError} Add a shipping option to replace the invalid list.
-        </p>
-      )}
-      <form
+      <EditorForm
         class="stack business-settings-form"
         preventdefault:submit
         onSubmit$={async () => {
@@ -51,6 +46,12 @@ export const BusinessSettings = component$<{
           }
         }}
       >
+        <Slot />
+        {values.value.shippingError && (
+          <p class="notice error" role="alert">
+            {values.value.shippingError} Add a shipping option to replace the invalid list.
+          </p>
+        )}
         <section class="settings-form-column stack" aria-labelledby={`${id}-currency`}>
           <div class="settings-section-heading">
             <h2 id={`${id}-currency`}>Currency</h2>
@@ -145,9 +146,10 @@ export const BusinessSettings = component$<{
                         rates.filter((row) => row.id !== option.id),
                       );
                     }}
-                  >
-                    Remove
-                  </Button>
+                    icon="close"
+                    mobileIconOnly
+                    label="Remove"
+                  />
                 </div>
               ))}
             </div>
@@ -155,7 +157,7 @@ export const BusinessSettings = component$<{
           {!values.value.shippingOptions.length && (
             <p class="settings-empty muted">No shipping rates added.</p>
           )}
-          <div>
+          <div class="settings-add-shipping">
             <Button
               class="secondary"
               disabled={saving.value}
@@ -167,9 +169,9 @@ export const BusinessSettings = component$<{
                   { id: makeId(), name: '', rate: '0' },
                 ]);
               }}
-            >
-              Add shipping option
-            </Button>
+              icon="plus"
+              label="Add shipping option"
+            />
           </div>
         </section>
         {setup && (
@@ -195,17 +197,24 @@ export const BusinessSettings = component$<{
             {localError.value || error}
           </p>
         )}
-        <ActionBar class="settings-save-actions" label="Currency and shipping actions">
+        <ActionBar q:slot="actions" class="settings-save-actions" label="Currency and shipping actions">
           {setup && (
-            <Button class="secondary" onClick$={setup.onCancel$} disabled={busy || saving.value}>
-              Cancel
-            </Button>
+            <Button
+              class="secondary"
+              onClick$={setup.onCancel$}
+              disabled={busy || saving.value}
+              icon="close"
+              label="Cancel"
+            />
           )}
-          <Button type="submit" disabled={busy || saving.value}>
-            {setup ? 'Finish setup' : 'Save settings'}
-          </Button>
+          <Button
+            type="submit"
+            disabled={busy || saving.value}
+            icon="save"
+            label={setup ? 'Finish setup' : 'Save settings'}
+          />
         </ActionBar>
-      </form>
+      </EditorForm>
     </Panel>
   );
 });

@@ -52,6 +52,23 @@ export const Help = component$(() => {
         <ThemeToggle />
       </header>
       <div class="help-layout help-document-body">
+        <label class="help-topic-picker">
+          <span class="sr-only">Help topic</span>
+          <select
+            value={topic.value}
+            onChange$={(_, select) => {
+              topic.value = select.value;
+              search.value = '';
+            }}
+          >
+            <option value="all">All features</option>
+            {HELP_TOPICS.map((section) => (
+              <option key={section.id} value={section.id}>
+                {section.title}
+              </option>
+            ))}
+          </select>
+        </label>
         <nav class="help-topics" aria-label="Help topics">
           <Button
             unstyled

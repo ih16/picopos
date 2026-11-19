@@ -112,7 +112,7 @@ const topics: HelpTopic[] = [
         paragraphs: [
           'For each sold variant, picopos uses positive Opening stock and Receipt entries linked to purchase lots and dated no later than the sale. A lot’s unit cost is its total purchase amount divided by total purchased units. Eligible receipts are weighted by their quantities, then multiplied by units sold.',
           'Estimated profit is sales value minus estimated product cost. It excludes delivery expenses and other operating expenses, so it is not net profit. Lot costs are averages, not exact costs assigned to each sold unit. Editing lot amounts can change past estimates.',
-          'If a sold variant has no eligible cost history, that day’s cost line has a gap and its cost and profit are unavailable. Period cost and profit totals are unavailable when any sold units lack costs. Received returns do not automatically subtract sales or refund amounts.',
+          'Cost and profit include only items with eligible cost history. Each item receives a share of order discounts and shipping based on its sales value, or its quantity when the order subtotal is zero. The summary counts sold units missing costs. A day with sales has a gap in the cost line if no sold units match. Received returns do not automatically subtract sales or refund amounts.',
         ],
       },
       {

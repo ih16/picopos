@@ -66,7 +66,9 @@ export const Dashboard = component$<{ data: WorkbookData }>(({ data }) => {
     )
     .join(' ');
   const uncostedUnits = summary.trend.reduce((sum, day) => sum + day.uncostedUnits, 0);
-  const estimatedCost = uncostedUnits ? null : summary.trend.reduce((sum, day) => sum + (day.cost ?? 0), 0);
+  const costedUnits = summary.trend.reduce((sum, day) => sum + day.costedUnits, 0);
+  const costedValue = summary.trend.reduce((sum, day) => sum + day.costedValue, 0);
+  const estimatedCost = summary.trend.reduce((sum, day) => sum + (day.cost ?? 0), 0);
   const points = summary.trend
     .map((day, index) => `${48 + (index * plotWidth) / intervals},${184 - (day.value / max) * 150}`)
     .join(' ');
@@ -111,6 +113,9 @@ export const Dashboard = component$<{ data: WorkbookData }>(({ data }) => {
             </Button>
           ))}
           <Button
+            mobileIconOnly
+            icon="calendar"
+            label={customRange ? periodLabel : 'Date range'}
             class={customRange ? '' : 'secondary'}
             disabled={!availableDays.length}
             aria-pressed={Boolean(customRange)}
@@ -119,9 +124,7 @@ export const Dashboard = component$<{ data: WorkbookData }>(({ data }) => {
               draftEnd.value = customRange ? customEnd.value : lastDay!;
               rangeOpen.value = true;
             }}
-          >
-            {customRange ? periodLabel : 'Date range'}
-          </Button>
+          />
         </div>
       </header>
       <Modal open={rangeOpen} title="Select date range">
@@ -158,29 +161,29 @@ export const Dashboard = component$<{ data: WorkbookData }>(({ data }) => {
               Choose a valid range within the available history containing at least one order.
             </p>
           )}
-          <div class="row">
-            <Button
-              class="secondary"
-              onClick$={() => {
-                rangeOpen.value = false;
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              disabled={!draftRange}
-              onClick$={() => {
-                if (!draftRange) return;
-                customStart.value = draftStart.value;
-                customEnd.value = draftEnd.value;
-                activeDay.value = undefined;
-                rangeOpen.value = false;
-              }}
-            >
-              Apply range
-            </Button>
-          </div>
         </div>
+        <footer q:slot="footer" class="modal-footer">
+          <Button
+            class="secondary"
+            onClick$={() => {
+              rangeOpen.value = false;
+            }}
+            icon="close"
+            label="Cancel"
+          />
+          <Button
+            disabled={!draftRange}
+            onClick$={() => {
+              if (!draftRange) return;
+              customStart.value = draftStart.value;
+              customEnd.value = draftEnd.value;
+              activeDay.value = undefined;
+              rangeOpen.value = false;
+            }}
+          >
+            Apply range
+          </Button>
+        </footer>
       </Modal>
       <div class="dashboard-scroll stack">
         <dl class="dashboard-metrics">
@@ -230,13 +233,21 @@ export const Dashboard = component$<{ data: WorkbookData }>(({ data }) => {
                     <div>
                       <dt>Estimated cost</dt>
                       <dd class="dashboard-total-cost">
-                        {estimatedCost === null ? 'Unavailable' : money(estimatedCost)}
+                        {uncostedUnits && !costedUnits ? '—' : money(estimatedCost)}
                       </dd>
                     </div>
                     <div>
                       <dt>Estimated profit</dt>
-                      <dd>{estimatedCost === null ? 'Unavailable' : money(summary.value - estimatedCost)}</dd>
+                      <dd>{uncostedUnits && !costedUnits ? '—' : money(costedValue - estimatedCost)}</dd>
                     </div>
+                    {uncostedUnits > 0 && (
+                      <div>
+                        <dt>Units missing cost</dt>
+                        <dd>
+                          {uncostedUnits} of {costedUnits + uncostedUnits}
+                        </dd>
+                      </div>
+                    )}
                   </>
                 )}
               </dl>
@@ -352,7 +363,7 @@ export const Dashboard = component$<{ data: WorkbookData }>(({ data }) => {
                     fill="transparent"
                     tabindex={0}
                     role="img"
-                    aria-label={`${day.day}: ${money(day.value)} · ${day.sales} sales${showCost.value ? ` · Estimated cost: ${day.cost === null ? 'Unavailable' : money(day.cost)}` : ''} · Estimated profit: ${day.cost === null ? 'Unavailable' : money(day.value - day.cost)}`}
+                    aria-label={`${day.day}: ${money(day.value)} · ${day.sales} sales${showCost.value ? ` · Estimated cost: ${day.cost === null ? '—' : money(day.cost)}` : ''} · Estimated profit: ${day.cost === null ? '—' : money(day.costedValue - day.cost)}`}
                     onPointerEnter$={() => {
                       activeDay.value = index;
                     }}
@@ -400,12 +411,12 @@ export const Dashboard = component$<{ data: WorkbookData }>(({ data }) => {
                   </text>
                   {showCost.value && (
                     <text x="12" y="58">
-                      Cost: {highlighted.cost === null ? 'Unavailable' : money(highlighted.cost)}
+                      Cost: {highlighted.cost === null ? '—' : money(highlighted.cost)}
                     </text>
                   )}
                   <text x="12" y={showCost.value ? 78 : 58}>
                     Est. profit:{' '}
-                    {highlighted.cost === null ? 'Unavailable' : money(highlighted.value - highlighted.cost)}
+                    {highlighted.cost === null ? '—' : money(highlighted.costedValue - highlighted.cost)}
                   </text>
                   <text x="12" y={showCost.value ? 98 : 78}>
                     {highlighted.sales} sales
@@ -417,9 +428,7 @@ export const Dashboard = component$<{ data: WorkbookData }>(({ data }) => {
               <p class="muted">
                 Estimated product cost uses quantity-weighted purchase-lot averages recorded by each sale
                 date; excludes delivery and operating expenses.
-                {uncostedUnits > 0
-                  ? ` Costs missing for ${uncostedUnits} sold units; affected days have gaps.`
-                  : ''}
+                {uncostedUnits > 0 && ' Estimates include only items with a matching purchase cost.'}
               </p>
             )}
             {!summary.sales && <p class="muted">No sales in this period.</p>}
@@ -510,9 +519,12 @@ export const Dashboard = component$<{ data: WorkbookData }>(({ data }) => {
                 <h2>Inventory health</h2>
                 <p class="muted">Current stock · all dates</p>
               </div>
-              <Button class="secondary compact" onClick$={() => navigate$('/inventory')}>
-                View stock
-              </Button>
+              <Button
+                class="secondary compact"
+                onClick$={() => navigate$('/inventory')}
+                icon="arrow-right"
+                label="View stock"
+              />
             </div>
             <dl class="dashboard-stock">
               {(['available', 'reserved', 'unavailable', 'onHand'] as const).map((key, index) => (

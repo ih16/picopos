@@ -20,8 +20,8 @@ The top-right sun/moon toggle switches day and night mode. Theme colors live in 
 
 ## Components
 
-- **Shell.** Keep the wordmark at the left, primary page navigation in the center, and workbook identity at the right. Use round utility buttons for workbook actions. Below 760 px, place the navigation and utilities on their own rows.
-- **Journey.** Group the four main order stages into equal cards with genuine order previews and counts. Stage controls filter the order list. Order previews open the existing detail view. The board uses two columns at intermediate and narrow widths.
+- **Shell.** Keep the wordmark at the left, primary page navigation in the center, and workbook identity at the right. Use round utility buttons for workbook actions. At 760 px and below, pin the navigation icons to the bottom of the viewport and let the document scroll. Keep dialogs and virtualized stock history independently scrollable.
+- **Journey.** Group the four main order stages into equal cards with genuine order previews and counts. Stage controls filter the order list. Order previews open the existing detail view. The board uses two columns at intermediate widths. On phones the order list and its status filter take priority, so the board is hidden.
 - **Panels and tables.** Use a heading, optional filters, and aligned columns within a rounded panel. Align quantities right. Keep wide tables scrollable within their panel and wrap long customer or product names.
 - **Metric cards.** Put the metric name above the value. Use a small semantic color dot and tabular digits. Calculate totals from the current workbook.
 - **Forms.** Give each field a visible label and keep primary and secondary actions distinct. Use an inline message for errors. Disable writes while a save is in progress.
@@ -30,7 +30,7 @@ The top-right sun/moon toggle switches day and night mode. Theme colors live in 
 
 ## Accessibility and review
 
-- All navigation, utility actions, journey previews, and filters can be operated by keyboard. Verify visible focus on white and gray surfaces and accessible names on icon buttons.
+- All navigation, utility actions, journey previews, and filters can be operated by keyboard. Verify visible focus on white and gray surfaces and accessible names on icon buttons. For common actions, pass an icon and label to the shared Button. Keep both visible on phones wherever space allows. Use mobileIconOnly for crowded controls. A long press reveals the icon’s label.
 - Pair status colors with text and verify WCAG AA text contrast before changing a token.
 - Confirm the page fits at small widths and that wide tables scroll inside their panels.
 - Use direct labels such as “New order”, “Sync now”, and “Add stock entry”. Keep helper text tied to the user’s next action.

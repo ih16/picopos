@@ -14,6 +14,7 @@ export function useWorkspaceNavigation(error: Signal<string>) {
       if (replace) window.history.replaceState(window.history.state, '', hash);
       else window.history.pushState(window.history.state, '', hash);
     }
+    if (next.path !== route.value.path) window.scrollTo(0, 0);
     route.value = next;
     tabPaths[screenTabKey(next)] = next.path;
     openPages.value = addScreenTab(openPages.value, next, replace ? sourceKey : undefined);
@@ -23,6 +24,7 @@ export function useWorkspaceNavigation(error: Signal<string>) {
     ({ cleanup }) => {
       const restoreRoute = () => {
         const next = parseScreenRoute(window.location.hash);
+        if (next.path !== route.value.path) window.scrollTo(0, 0);
         route.value = next;
         tabPaths[screenTabKey(next)] = next.path;
         openPages.value = addScreenTab(openPages.value, next);

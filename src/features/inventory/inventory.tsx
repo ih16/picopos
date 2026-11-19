@@ -11,7 +11,17 @@ import {
   type WorkbookData,
 } from '../../domain/workbook';
 import { useVirtualScroll } from '../../shared/hooks/use-virtual-scroll';
-import { ActionBar, Badge, Button, Input, Modal, Panel, SelectField, Table } from '../../shared/ui/controls';
+import {
+  ActionBar,
+  EditorForm,
+  Badge,
+  Button,
+  Input,
+  Modal,
+  Panel,
+  SelectField,
+  Table,
+} from '../../shared/ui/controls';
 import { Icon } from '../../shared/ui/icon';
 import { ProductLabel } from '../../shared/ui/product-thumbnail';
 import { ReconnectNotice } from '../auth/connection';
@@ -207,10 +217,13 @@ export const Inventory = component$<{
         )}
       </div>
       {!showForm.value && !lotEditor.value && subpage.value !== 'lots' && (
-        <ActionBar label="Inventory actions">
-          <Button disabled={busy || !variants.length} onClick$={() => startEntry()}>
-            Add stock entry
-          </Button>
+        <ActionBar class="record-shortcut" label="Inventory actions">
+          <Button
+            disabled={busy || !variants.length}
+            onClick$={() => startEntry()}
+            icon="stock-in"
+            label="Add stock entry"
+          />
         </ActionBar>
       )}
       {subpage.value === 'stock' && (
@@ -228,7 +241,7 @@ export const Inventory = component$<{
       <div class="inventory-dialogs">
         <Modal open={showForm} title="New stock entry">
           {showForm.value && <ReconnectNotice q:slot="notice" />}
-          <form
+          <EditorForm
             class="stack"
             preventdefault:submit
             onSubmit$={async () => {
@@ -359,19 +372,21 @@ export const Inventory = component$<{
                 {saveError}
               </p>
             )}
-            <ActionBar label="Editor actions">
-              <Button class="secondary" onClick$={() => (showForm.value = false)} disabled={busy}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={busy}>
-                Save entry
-              </Button>
+            <ActionBar q:slot="actions" label="Editor actions">
+              <Button
+                class="secondary"
+                onClick$={() => (showForm.value = false)}
+                disabled={busy}
+                icon="close"
+                label="Cancel"
+              />
+              <Button type="submit" disabled={busy} icon="save" label="Save entry" />
             </ActionBar>
-          </form>
+          </EditorForm>
         </Modal>
         <Modal open={lotEditor} title="Change purchase lot">
           {lotEditor.value && <ReconnectNotice q:slot="notice" />}
-          <form
+          <EditorForm
             class="stack"
             preventdefault:submit
             onSubmit$={async () => {
@@ -402,21 +417,19 @@ export const Inventory = component$<{
                 {saveError}
               </p>
             )}
-            <ActionBar label="Stock lot editor actions">
+            <ActionBar q:slot="actions" label="Stock lot editor actions">
               <Button
                 class="secondary"
                 disabled={busy}
                 onClick$={() => {
                   lotEditor.value = false;
                 }}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={busy}>
-                Save lot link
-              </Button>
+                icon="close"
+                label="Cancel"
+              />
+              <Button type="submit" disabled={busy} icon="save" label="Save lot link" />
             </ActionBar>
-          </form>
+          </EditorForm>
         </Modal>
       </div>
       {subpage.value === 'lots' && (
@@ -524,9 +537,12 @@ export const Inventory = component$<{
                   </p>
                   {query.length > 0 && (
                     <div>
-                      <Button class="secondary compact" onClick$={clearSearch}>
-                        Clear search
-                      </Button>
+                      <Button
+                        class="secondary compact"
+                        onClick$={clearSearch}
+                        icon="close"
+                        label="Clear search"
+                      />
                     </div>
                   )}
                 </div>

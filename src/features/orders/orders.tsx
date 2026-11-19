@@ -162,9 +162,10 @@ export const Orders = component$<OrdersProps>(({ data, busy, onCommit$, saveErro
               {canReturn && returnableItems.length > 0 && !returning.value && (
                 <Button
                   type="button"
-                  class="secondary"
+                  class="secondary return-shortcut"
                   disabled={busy}
-                  onClick$={() => {
+                  onClick$={(_, button) => {
+                    const section = button.closest('.order-detail-page')?.querySelector('.detail-returns');
                     returnItemId.value = '';
                     returnQuantity.value = 1;
                     returnCondition.value = 'Sellable';
@@ -172,10 +173,13 @@ export const Orders = component$<OrdersProps>(({ data, busy, onCommit$, saveErro
                     receiveNow.value = false;
                     error.value = '';
                     returning.value = true;
+                    if (matchMedia('(max-width: 760px)').matches)
+                      requestAnimationFrame(() => section?.scrollIntoView({ block: 'start' }));
                   }}
-                >
-                  Add return
-                </Button>
+                  mobileIconOnly
+                  icon="return"
+                  label="Add return"
+                />
               )}
             </ActionBar>
           )}
@@ -449,9 +453,7 @@ export const Orders = component$<OrdersProps>(({ data, busy, onCommit$, saveErro
                     </p>
                   )}
                   <ActionBar label="Return actions">
-                    <Button type="submit" class="primary" disabled={busy}>
-                      Save return
-                    </Button>
+                    <Button type="submit" class="primary" disabled={busy} icon="save" label="Save return" />
                     <Button
                       type="button"
                       class="secondary"
@@ -578,10 +580,15 @@ export const Orders = component$<OrdersProps>(({ data, busy, onCommit$, saveErro
   return (
     <div class="stack orders-page">
       <h1 class="sr-only">Orders</h1>
-      <ActionBar label="Orders actions">
-        <Button type="button" class="primary" disabled={busy} onClick$={() => navigate$('/orders/new')}>
-          <Icon name="plus" /> New order
-        </Button>
+      <ActionBar class="record-shortcut" label="Orders actions">
+        <Button
+          type="button"
+          class="primary"
+          disabled={busy}
+          onClick$={() => navigate$('/orders/new')}
+          icon="order-add"
+          label="New order"
+        />
       </ActionBar>
       <section class="journey-board" aria-labelledby="order-journey-title">
         <div class="journey-header">
@@ -721,15 +728,14 @@ export const Orders = component$<OrdersProps>(({ data, busy, onCommit$, saveErro
                     <Badge status={order.status}>{order.status}</Badge>
                     <Badge status={order.paymentStatus}>{order.paymentStatus}</Badge>
                     {returnStatus && <Badge status={returnStatus}>{returnStatus}</Badge>}
-                  </div>
-                  <div class="row">
                     <Button
-                      class="secondary"
+                      class="secondary open-order"
                       aria-label={`View order ${order.number}`}
                       onClick$={() => openOrder(order.id)}
-                    >
-                      View order <Icon name="arrow-right" />
-                    </Button>
+                      icon="arrow-right"
+                      mobileIconOnly
+                      label="View order"
+                    />
                   </div>
                 </article>
               ))}
@@ -749,9 +755,9 @@ export const Orders = component$<OrdersProps>(({ data, busy, onCommit$, saveErro
                   search.value = '';
                   statusFilter.value = [];
                 }}
-              >
-                Clear filters
-              </Button>
+                icon="close"
+                label="Clear filters"
+              />
             )}
           </div>
         )}

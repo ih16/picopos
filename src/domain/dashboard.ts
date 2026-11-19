@@ -6,7 +6,16 @@ export function dashboardSummary(data: WorkbookData, days: number, now = new Dat
   const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - days + 1);
   const trend = Array.from({ length: days }, (_, index) => {
     const date = new Date(start.getFullYear(), start.getMonth(), start.getDate() + index);
-    return { day: dayKey(date), value: 0, orders: 0, sales: 0, cost: 0 as number | null, uncostedUnits: 0 };
+    return {
+      day: dayKey(date),
+      value: 0,
+      orders: 0,
+      sales: 0,
+      cost: 0 as number | null,
+      costedValue: 0,
+      costedUnits: 0,
+      uncostedUnits: 0,
+    };
   });
   const byDay = new Map(trend.map((day) => [day.day, day]));
   const orders = data.Orders.filter((order) => {
@@ -38,7 +47,10 @@ export function dashboardSummary(data: WorkbookData, days: number, now = new Dat
   }
   const variants = new Map(data.Variants.map((variant) => [variant.id, variant]));
   const productNames = new Map(data.Products.map((product) => [product.id, product.name]));
-  const saleDates = new Map(sales.map((order) => [order.id, new Date(order.createdAt)]));
+  const saleOrders = new Map(sales.map((order) => [order.id, order]));
+  const orderUnits = new Map<string, number>();
+  for (const item of data['Order Items'])
+    orderUnits.set(item.orderId, (orderUnits.get(item.orderId) ?? 0) + item.quantity);
   const lots = new Map(data['Purchase Lots'].map((lot) => [lot.id, lot]));
   const receipts = new Map<string, { date: number; units: number; cost: number }[]>();
   for (const entry of data['Stock Entries']) {
@@ -55,19 +67,26 @@ export function dashboardSummary(data: WorkbookData, days: number, now = new Dat
   }
   const products = new Map<string, { id: string; name: string; units: number }>();
   for (const item of data['Order Items']) {
-    if (!saleIds.has(item.orderId)) continue;
-    const saleDate = saleDates.get(item.orderId)!;
+    const order = saleOrders.get(item.orderId);
+    if (!order) continue;
+    const saleDate = new Date(order.createdAt);
     const day = byDay.get(dayKey(saleDate))!;
     const purchased = (receipts.get(item.variantId) ?? []).filter(
       (receipt) => receipt.date <= saleDate.getTime(),
     );
     const units = purchased.reduce((sum, receipt) => sum + receipt.units, 0);
     if (units) {
-      if (day.cost !== null)
-        day.cost +=
-          (item.quantity * purchased.reduce((sum, receipt) => sum + receipt.units * receipt.cost, 0)) / units;
+      const subtotal = subtotals.get(order.id)!;
+      const share = subtotal
+        ? lineSubtotal(item.quantity, item.unitPrice) / subtotal
+        : item.quantity / orderUnits.get(order.id)!;
+      day.costedValue += totalForOrder(order) * share;
+      day.costedUnits += item.quantity;
+      day.cost =
+        (day.cost ?? 0) +
+        (item.quantity * purchased.reduce((sum, receipt) => sum + receipt.units * receipt.cost, 0)) / units;
     } else {
-      day.cost = null;
+      if (!day.costedUnits) day.cost = null;
       day.uncostedUnits += item.quantity;
     }
     const id = variants.get(item.variantId)?.productId ?? item.productName;

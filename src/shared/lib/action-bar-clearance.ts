@@ -37,7 +37,10 @@ export function watchActionBarClearance() {
         observed.add(element);
       }
     }
+    // Mobile record shortcuts reserve clearance on the document-scrolling page.
+    const mobile = window.matchMedia('(max-width: 760px)').matches;
     const floating = bars
+      .filter((bar) => !(mobile && bar.classList.contains('record-shortcut')))
       .filter((bar) => bar.getClientRects().length && getComputedStyle(bar).position === 'fixed')
       .map((bar) => ({ bar, rect: bar.getBoundingClientRect() }));
     for (const area of areas) {

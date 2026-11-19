@@ -12,7 +12,6 @@ import {
   type RowChange,
 } from '../../domain/workbook';
 import { Accordion, ActionBar, Button, Input, SelectField, Textarea } from '../../shared/ui/controls';
-import { Icon } from '../../shared/ui/icon';
 import { ProductPhoto } from '../../shared/ui/product-thumbnail';
 
 import { emptyDraft, quantityLabel } from './order-helpers';
@@ -293,9 +292,10 @@ export const CreateOrder = component$<OrdersProps>(({ data, busy, onCommit$, sav
                               onClick$={() => {
                                 draft.lines = draft.lines.filter((entry) => entry.key !== line.key);
                               }}
-                            >
-                              <Icon name="close" /> Remove
-                            </Button>
+                              icon="close"
+                              mobileIconOnly
+                              label="Remove"
+                            />
                           )}
                         </div>
                         <SelectField
@@ -387,9 +387,9 @@ export const CreateOrder = component$<OrdersProps>(({ data, busy, onCommit$, sav
                       onClick$={() => {
                         draft.lines.push({ key: nextLineKey.value++, variantId: '', quantity: 1 });
                       }}
-                    >
-                      <Icon name="plus" /> Add item
-                    </Button>
+                      icon="plus"
+                      label="Add item"
+                    />
                   </div>
                 </>
               )}
@@ -476,12 +476,22 @@ export const CreateOrder = component$<OrdersProps>(({ data, busy, onCommit$, sav
             <span class="muted">Total · {quantityLabel(totalUnits)}</span>
             <strong>{money(draftTotal, currency, numberFormat)}</strong>
           </div>
-          <Button class="secondary" disabled={busy} onClick$={close$}>
-            Cancel
-          </Button>
-          <Button type="submit" class="primary" disabled={busy || !activeVariants.length}>
-            {busy ? 'Saving…' : 'Create draft'}
-          </Button>
+          <Button
+            class="secondary"
+            disabled={busy}
+            onClick$={close$}
+            mobileIconOnly
+            icon="close"
+            label="Cancel"
+          />
+          <Button
+            type="submit"
+            class="primary"
+            disabled={busy || !activeVariants.length}
+            mobileIconOnly
+            icon="save"
+            label={busy ? 'Saving…' : 'Create draft'}
+          />
         </ActionBar>
       </form>
     </div>
