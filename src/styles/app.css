@@ -2033,6 +2033,12 @@ body:has(.workspace) {
   overflow: hidden;
   scrollbar-gutter: auto;
 }
+.orders-page > .orders-list,
+.customers-page > .customers-list,
+.customers-page > .customer-history,
+.inventory-page > .panel {
+  margin-block-end: var(--space-4);
+}
 .orders-list > *,
 .inventory-page > .panel > * {
   flex-shrink: 0;
@@ -3448,7 +3454,7 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
 
 .workspace-sidebar-footer {
   margin-top: auto;
-  padding-top: 12px;
+  padding-block: var(--space-3) var(--space-4);
   border-top: 1px solid var(--line);
 }
 .workspace-sidebar-footer .nav-item {
