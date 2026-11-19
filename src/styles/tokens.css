@@ -3,6 +3,18 @@
   --font-ui: 'DM Sans Variable', 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-code: ui-monospace, SFMono-Regular, Consolas, monospace;
 
+  --text-caption: 0.75rem;
+  --text-small: 0.875rem;
+  --text-body: 0.9375rem;
+  --text-subheading: 1rem;
+  --text-section: 1.125rem;
+  --text-title: 1.25rem;
+  --text-metric: 1.5rem;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
   --canvas: #e4e6eb;
   --canvas-start: #eff0f2;
   --canvas-glow: #c2cdeb;
@@ -64,7 +76,7 @@
   --control-height-md: 44px;
   --control-padding-sm: 7px;
   --control-padding-md: 10px;
-  --control-font-size: 0.875rem;
+  --control-font-size: var(--text-small);
   --control-line-height: 22px;
   --control-padding-inline: 12px;
   --control-icon-size: 18px;
@@ -81,21 +93,21 @@
 
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --canvas: #151922;
-  --canvas-start: #1c2230;
-  --canvas-glow: #263554;
-  --canvas-glow-soft: #242c42;
-  --glass-surface: rgb(31 39 54 / 74%);
-  --glass-raised: rgb(42 52 70 / 78%);
-  --glass-overlay: rgb(28 35 49 / 94%);
-  --glass-soft: rgb(60 73 96 / 40%);
+  --canvas: #10131a;
+  --canvas-start: #151a24;
+  --canvas-glow: #1d283f;
+  --canvas-glow-soft: #1b2132;
+  --glass-surface: rgb(23 29 41 / 74%);
+  --glass-raised: rgb(32 39 53 / 78%);
+  --glass-overlay: rgb(21 26 37 / 94%);
+  --glass-soft: rgb(45 55 72 / 40%);
   --glass-border: rgb(177 195 226 / 15%);
   --glass-shadow: inset 0 1px 0 rgb(192 210 242 / 7%), 0 10px 32px rgb(0 0 0 / 14%);
-  --surface: #202838;
-  --surface-raised: #283246;
-  --surface-soft: #252f41;
-  --surface-board: #1d2637;
-  --surface-board-end: #263248;
+  --surface: #181e2a;
+  --surface-raised: #1e2635;
+  --surface-soft: #1c2331;
+  --surface-board: #161d29;
+  --surface-board-end: #1d2636;
   --ink: #edf1f8;
   --ink-muted: #b4bfd2;
   --ink-soft: #a4b1c8;

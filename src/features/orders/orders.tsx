@@ -663,7 +663,7 @@ export const Orders = component$<OrdersProps>(({ data, busy, onCommit$, saveErro
         </div>
         {visible.length > 0 ? (
           <>
-            <Table desktopOnly>
+            <Table desktopOnly class="scroll-rows orders-table" aria-labelledby="order-list-title">
               <thead>
                 <tr>
                   <th scope="col">Order</th>

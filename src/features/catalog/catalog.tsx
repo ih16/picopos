@@ -671,90 +671,114 @@ export const Catalog = component$<Props>(({ data, busy, error, onCommit$ }) => {
               </p>
             </Panel>
           ) : (
-            <div class="product-grid">
-              {shown.map((item) => {
-                const variants = variantsByProduct.get(item.id) ?? [];
-                const productStatus = item.active ? 'Active' : 'Archived';
+            <div class="product-list-scroll-frame">
+              <div class="product-grid">
+                {shown.map((item) => {
+                  const variants = variantsByProduct.get(item.id) ?? [];
+                  const productStatus = item.active ? 'Active' : 'Archived';
 
-                return (
-                  <article class="panel product-card" key={item.id}>
-                    <Collapsible.Root class="product-disclosure">
-                      <div class="product-head">
-                        <div class="product-identity">
-                          <ProductPhoto
-                            key={`${item.name}:${item.image ?? ''}`}
-                            name={item.name}
-                            value={item.image}
-                            class="catalog-photo"
-                          />
-                          <div class="product-heading">
-                            <p class="eyebrow">{categoryNames.get(item.categoryId) || 'Uncategorized'}</p>
-                            <h3>{item.name}</h3>
-                            {item.description && <p class="muted">{item.description}</p>}
+                  return (
+                    <article class="panel product-card" key={item.id}>
+                      <Collapsible.Root class="product-disclosure">
+                        <div class="product-head">
+                          <div class="product-identity">
+                            <ProductPhoto
+                              key={`${item.name}:${item.image ?? ''}`}
+                              name={item.name}
+                              value={item.image}
+                              class="catalog-photo"
+                            />
+                            <div class="product-heading">
+                              <p class="eyebrow">{categoryNames.get(item.categoryId) || 'Uncategorized'}</p>
+                              <h3>{item.name}</h3>
+                              {item.description && <p class="muted">{item.description}</p>}
+                            </div>
+                          </div>
+                          <div class="row product-actions">
+                            <Badge status={productStatus}>{productStatus}</Badge>
+                            <Collapsible.Trigger
+                              class="button secondary compact variant-toggle"
+                              aria-label={`Variants for ${item.name}`}
+                            >
+                              <span>
+                                {variants.length} {variants.length === 1 ? 'variant' : 'variants'}
+                              </span>
+                              <span class="control-chevron" aria-hidden="true" />
+                            </Collapsible.Trigger>
+                            <Button
+                              class="secondary compact catalog-icon-button"
+                              title="Edit product"
+                              aria-label={`Edit product ${item.name}`}
+                              onClick$={() => openProduct(item)}
+                            >
+                              <Icon name="edit" />
+                            </Button>
+                            <Button
+                              class="secondary compact catalog-icon-button"
+                              title="Add variant"
+                              aria-label={`Add variant to ${item.name}`}
+                              onClick$={() => openVariant(newVariant(item.id))}
+                            >
+                              <Icon name="plus" />
+                            </Button>
                           </div>
                         </div>
-                        <div class="row product-actions">
-                          <Badge status={productStatus}>{productStatus}</Badge>
-                          <Collapsible.Trigger
-                            class="button secondary compact variant-toggle"
-                            aria-label={`Variants for ${item.name}`}
-                          >
-                            <span>
-                              {variants.length} {variants.length === 1 ? 'variant' : 'variants'}
-                            </span>
-                            <span class="control-chevron" aria-hidden="true" />
-                          </Collapsible.Trigger>
-                          <Button
-                            class="secondary compact catalog-icon-button"
-                            title="Edit product"
-                            aria-label={`Edit product ${item.name}`}
-                            onClick$={() => openProduct(item)}
-                          >
-                            <Icon name="edit" />
-                          </Button>
-                          <Button
-                            class="secondary compact catalog-icon-button"
-                            title="Add variant"
-                            aria-label={`Add variant to ${item.name}`}
-                            onClick$={() => openVariant(newVariant(item.id))}
-                          >
-                            <Icon name="plus" />
-                          </Button>
-                        </div>
-                      </div>
-                      <Collapsible.Content class="product-variants">
-                        {variants.length > 0 ? (
-                          <>
-                            <Table desktopOnly aria-label={`Variants for ${item.name}`}>
-                              <thead>
-                                <tr>
-                                  <th scope="col">Variant</th>
-                                  <th scope="col">SKU</th>
-                                  <th scope="col" class="numeric">
-                                    Price ({currency})
-                                  </th>
-                                  <th scope="col">Status</th>
-                                  <th scope="col">
-                                    <span class="sr-only">Action</span>
-                                  </th>
-                                </tr>
-                              </thead>
-                              <tbody>
+                        <Collapsible.Content class="product-variants">
+                          {variants.length > 0 ? (
+                            <>
+                              <Table desktopOnly aria-label={`Variants for ${item.name}`}>
+                                <thead>
+                                  <tr>
+                                    <th scope="col">Variant</th>
+                                    <th scope="col">SKU</th>
+                                    <th scope="col" class="numeric">
+                                      Price ({currency})
+                                    </th>
+                                    <th scope="col">Status</th>
+                                    <th scope="col">
+                                      <span class="sr-only">Action</span>
+                                    </th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {variants.map((row) => {
+                                    const variantStatus = row.active ? 'Active' : 'Archived';
+                                    return (
+                                      <tr key={row.id}>
+                                        <td>
+                                          <ProductLabel name={item.name} image={item.image}>
+                                            {row.optionValues || 'Default'}
+                                          </ProductLabel>
+                                        </td>
+                                        <td class="sku">{row.sku}</td>
+                                        <td class="numeric">{decimalAmount(row.price, numberFormat)}</td>
+                                        <td>
+                                          <Badge status={variantStatus}>{variantStatus}</Badge>
+                                        </td>
+                                        <td>
+                                          <Button
+                                            class="secondary compact"
+                                            aria-label={`Edit variant ${row.sku}`}
+                                            onClick$={() => openVariant(row)}
+                                          >
+                                            Edit
+                                          </Button>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </Table>
+                              <ul class="mobile-records" aria-label={`Variants for ${item.name}`}>
                                 {variants.map((row) => {
                                   const variantStatus = row.active ? 'Active' : 'Archived';
                                   return (
-                                    <tr key={row.id}>
-                                      <td>
+                                    <li class="mobile-record" key={row.id}>
+                                      <div class="mobile-record-head">
                                         <ProductLabel name={item.name} image={item.image}>
-                                          {row.optionValues || 'Default'}
+                                          <strong>{row.optionValues || 'Default'}</strong>
+                                          <span class="inventory-row-meta sku">{row.sku}</span>
                                         </ProductLabel>
-                                      </td>
-                                      <td class="sku">{row.sku}</td>
-                                      <td class="numeric">{decimalAmount(row.price, numberFormat)}</td>
-                                      <td>
-                                        <Badge status={variantStatus}>{variantStatus}</Badge>
-                                      </td>
-                                      <td>
                                         <Button
                                           class="secondary compact"
                                           aria-label={`Edit variant ${row.sku}`}
@@ -762,57 +786,35 @@ export const Catalog = component$<Props>(({ data, busy, error, onCommit$ }) => {
                                         >
                                           Edit
                                         </Button>
-                                      </td>
-                                    </tr>
+                                      </div>
+                                      <dl class="mobile-record-values">
+                                        <div>
+                                          <dt>Price</dt>
+                                          <dd>
+                                            {decimalAmount(row.price, numberFormat)} {currency}
+                                          </dd>
+                                        </div>
+                                        <div>
+                                          <dt>Status</dt>
+                                          <dd>
+                                            <Badge status={variantStatus}>{variantStatus}</Badge>
+                                          </dd>
+                                        </div>
+                                      </dl>
+                                    </li>
                                   );
                                 })}
-                              </tbody>
-                            </Table>
-                            <ul class="mobile-records" aria-label={`Variants for ${item.name}`}>
-                              {variants.map((row) => {
-                                const variantStatus = row.active ? 'Active' : 'Archived';
-                                return (
-                                  <li class="mobile-record" key={row.id}>
-                                    <div class="mobile-record-head">
-                                      <ProductLabel name={item.name} image={item.image}>
-                                        <strong>{row.optionValues || 'Default'}</strong>
-                                        <span class="inventory-row-meta sku">{row.sku}</span>
-                                      </ProductLabel>
-                                      <Button
-                                        class="secondary compact"
-                                        aria-label={`Edit variant ${row.sku}`}
-                                        onClick$={() => openVariant(row)}
-                                      >
-                                        Edit
-                                      </Button>
-                                    </div>
-                                    <dl class="mobile-record-values">
-                                      <div>
-                                        <dt>Price</dt>
-                                        <dd>
-                                          {decimalAmount(row.price, numberFormat)} {currency}
-                                        </dd>
-                                      </div>
-                                      <div>
-                                        <dt>Status</dt>
-                                        <dd>
-                                          <Badge status={variantStatus}>{variantStatus}</Badge>
-                                        </dd>
-                                      </div>
-                                    </dl>
-                                  </li>
-                                );
-                              })}
-                            </ul>
-                          </>
-                        ) : (
-                          <p class="empty">No variants yet.</p>
-                        )}
-                      </Collapsible.Content>
-                    </Collapsible.Root>
-                  </article>
-                );
-              })}
+                              </ul>
+                            </>
+                          ) : (
+                            <p class="empty">No variants yet.</p>
+                          )}
+                        </Collapsible.Content>
+                      </Collapsible.Root>
+                    </article>
+                  );
+                })}
+              </div>
             </div>
           )}
         </>

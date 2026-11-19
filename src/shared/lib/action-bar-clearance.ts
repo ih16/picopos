@@ -1,11 +1,12 @@
 const scrollAreas = [
-  '.settings-page',
+  '.settings-grid',
   '.dashboard-scroll',
   '.orders-list > .table-wrap',
   '.orders-list > .mobile-records',
   '.orders-list > .empty',
-  '.catalog-page > .product-grid',
+  '.product-list-scroll-frame > .product-grid',
   '.component-scroll',
+  '.scroll-rows > tbody',
   '.order-draft-form',
   '.ui-modal-content',
 ].join(',');

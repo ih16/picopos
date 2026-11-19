@@ -48,6 +48,7 @@ export const Dashboard = component$<{ data: WorkbookData }>(({ data }) => {
   const plotWidth = chartWidth.value - 68;
   const activeDay = useSignal<number>();
   const showCost = useSignal(false);
+  const showAllStock = useSignal(false);
   const { navigate$ } = useContext(ScreenNavigation);
   const summary = dashboardSummary(data, periodDays, customRange?.end);
   const currency = workbookCurrency(data);
@@ -523,33 +524,38 @@ export const Dashboard = component$<{ data: WorkbookData }>(({ data }) => {
                 </div>
               ))}
             </dl>
-            <h3>{summary.lowStock.length} variants need attention</h3>
-            <p class="muted">Active variants with 5 or fewer available units</p>
+            <div class="stock-board-heading">
+              <h3>
+                Low stock <span>{summary.lowStock.length}</span>
+              </h3>
+              <small>5 or fewer units available</small>
+            </div>
             {summary.lowStock.length ? (
               <ul class="dashboard-low-stock">
-                {summary.lowStock.slice(0, 5).map((item) => (
-                  <li key={item.variantId}>
-                    <ProductLabel
-                      name={item.name}
-                      image={
-                        data.Products.find(
-                          (product) =>
-                            product.id ===
-                            data.Variants.find((variant) => variant.id === item.variantId)?.productId,
-                        )?.image
-                      }
-                    >
-                      <strong>{item.name}</strong>
-                      <span class="inventory-row-meta">{item.sku}</span>
-                    </ProductLabel>
-                    <span class={item.available <= 0 ? 'negative' : ''}>
-                      {item.available <= 0 ? `${item.available} available` : `${item.available} left`}
-                    </span>
+                {summary.lowStock.slice(0, showAllStock.value ? undefined : 18).map((item) => (
+                  <li
+                    key={item.variantId}
+                    data-level={item.available <= 0 ? 'empty' : item.available <= 2 ? 'critical' : 'low'}
+                  >
+                    <span class="stock-tile-sku">{item.sku}</span>
+                    <strong class="stock-tile-quantity">
+                      {item.available.toLocaleString(numberFormat)}{' '}
+                      <small>{item.available <= 0 ? 'avail.' : 'left'}</small>
+                    </strong>
+                    <span class="stock-tile-name">{item.name}</span>
                   </li>
                 ))}
               </ul>
             ) : (
               <p class="muted">All active variants have more than 5 units available.</p>
+            )}
+            {summary.lowStock.length > 18 && (
+              <Button
+                class="secondary compact stock-board-toggle"
+                onClick$={() => (showAllStock.value = !showAllStock.value)}
+              >
+                {showAllStock.value ? 'Show fewer' : `Show all ${summary.lowStock.length} variants`}
+              </Button>
             )}
           </Panel>
         </div>

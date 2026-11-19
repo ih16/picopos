@@ -428,7 +428,7 @@ export const Inventory = component$<{
             <div class="component-scroll">
               {rows.length ? (
                 <>
-                  <Table desktopOnly aria-label="Stock balances">
+                  <Table desktopOnly class="scroll-rows stock-balances-table" aria-label="Stock balances">
                     <thead>
                       <tr>
                         <th scope="col">Product</th>
@@ -541,7 +541,7 @@ export const Inventory = component$<{
             <div class="component-scroll virtual-scroll" ref={historyScroll.container}>
               {historyRows.length ? (
                 <>
-                  <Table desktopOnly aria-label="Stock entries">
+                  <Table desktopOnly class="scroll-rows stock-entries-table" aria-label="Stock entries">
                     <thead>
                       <tr>
                         <th scope="col">Date</th>
@@ -556,7 +556,7 @@ export const Inventory = component$<{
                         </th>
                       </tr>
                     </thead>
-                    <tbody>
+                    <tbody ref={historyScroll.tableBody}>
                       <tr aria-hidden="true" class="virtual-spacer">
                         <td colSpan={6} style={{ height: `${historyScroll.range.value.before}px` }} />
                       </tr>

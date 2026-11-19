@@ -109,7 +109,7 @@ const CustomerForm = component$<{
             }}
           />
         </label>
-        <label class="field">
+        <label class="field customer-field-wide">
           Address
           <Textarea
             rows={2}
@@ -120,7 +120,7 @@ const CustomerForm = component$<{
             }}
           />
         </label>
-        <label class="field">
+        <label class="field customer-field-wide">
           Notes
           <Textarea
             rows={2}
@@ -205,7 +205,7 @@ export const Customers = component$<Props>(({ data, busy, error, onCommit$ }) =>
         <>
           <header class="panel-heading customer-heading">
             <div class="row">
-              <h2>{selected.customer.name}</h2>
+              <h2 class="page-title">{selected.customer.name}</h2>
             </div>
             <Badge status={selected.customer.active ? 'Active' : 'Archived'}>
               {!selected.saved ? 'From orders' : selected.customer.active ? 'Active' : 'Archived'}
@@ -233,7 +233,7 @@ export const Customers = component$<Props>(({ data, busy, error, onCommit$ }) =>
               <span class="muted">{selected.orders.length} orders</span>
             </div>
             <div class="component-scroll">
-              <Table>
+              <Table class="scroll-rows customer-orders-table" aria-label="Order history">
                 <thead>
                   <tr>
                     <th>Order</th>
@@ -278,7 +278,7 @@ export const Customers = component$<Props>(({ data, busy, error, onCommit$ }) =>
           <Panel class="stack customers-list">
             <div class="panel-heading">
               <div>
-                <h2>Customers</h2>
+                <h2 class="page-title">Customers</h2>
                 <p class="muted">
                   {shown.length} contacts · {data.Customers.length} saved
                 </p>
@@ -311,7 +311,7 @@ export const Customers = component$<Props>(({ data, busy, error, onCommit$ }) =>
               </div>
             </div>
             <div class="component-scroll">
-              <Table>
+              <Table class="scroll-rows customers-table" aria-label="Customers">
                 <thead>
                   <tr>
                     <th>Customer</th>

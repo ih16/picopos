@@ -9,7 +9,7 @@ picopos uses a cool gray canvas with translucent work surfaces, charcoal actions
 | Canvas     | Cool gray gradient with a blue-gray order board. Use `--canvas`, `--canvas-start`, and the board surface tokens.                                                                       |
 | Surfaces   | Layered translucent panels use `--glass-surface`, `--glass-raised`, `--glass-soft`, `--glass-border`, and `--glass-shadow`. Keep solid `--surface*` fallbacks.                         |
 | Actions    | Charcoal `--action` with white text for primary and selected controls. Use bordered white for secondary actions.                                                                       |
-| Type       | DM Sans with a system fallback. Page titles scale from 36 to 54 px. Section titles use 20 px. Use monospace for SKU values.                                                            |
+| Type       | DM Sans with a system fallback. Use the shared type scale for 20 px page titles, 18 px section headings, and 16 px subheadings. Use monospace for SKU values.                          |
 | Spacing    | Use the 4, 8, 12, 16, 24, 32, and 48 px steps in `src/styles/tokens.css`.                                                                                                              |
 | Shape      | 12 px inputs, 18 px cards, 25 px panels, and pill buttons.                                                                                                                             |
 | Status     | Gray for draft, blue for in progress, lavender for shipped, sage for completed, amber for attention, and rose for cancellation or errors. Keep status text visible alongside the tint. |
