@@ -481,6 +481,9 @@ textarea {
   background: var(--tone-dot);
 }
 
+a:is(.brand, [target='_blank']) {
+  text-decoration: none;
+}
 .brand {
   display: inline-flex;
   align-items: center;
