@@ -86,7 +86,8 @@ interface GoogleWindow extends Window {
   };
 }
 
-let activeToken: { value: string; expiresAt: number } | undefined;
+type AccessSession = { readonly value: string; readonly expiresAt: number };
+let activeToken: (AccessSession & { remembered?: string }) | undefined;
 let tokenKey: Promise<CryptoKey> | undefined;
 const scripts = new Map<string, Promise<void>>();
 let pickerLoading: Promise<void> | undefined;
@@ -95,15 +96,59 @@ const googleWindow = () => window as GoogleWindow;
 
 export const isGoogleConfigured = Boolean(config.clientId && config.apiKey && config.projectNumber);
 
-export function getAccessToken(allowExpired = false): string | undefined {
+export function getAccessSession(allowExpired = false): AccessSession | undefined {
   // Sync can ask Google to validate a session rather than relying on the local clock.
-  if (activeToken && (allowExpired || activeToken.expiresAt > Date.now())) return activeToken.value;
-  return undefined;
+  if (activeToken && (allowExpired || activeToken.expiresAt > Date.now())) return activeToken;
+}
+
+export function getAccessToken(allowExpired = false): string | undefined {
+  return getAccessSession(allowExpired)?.value;
+}
+
+export async function getSyncAccessSession(workbookId: string): Promise<AccessSession | undefined> {
+  // Storage events can arrive after a waiting sync acquires its workbook lock.
+  if (activeToken?.remembered !== undefined) {
+    try {
+      if (window.localStorage.getItem(tokenStorageKey) !== activeToken.remembered) activeToken = undefined;
+    } catch {
+      // An in-memory token is still usable without browser storage.
+    }
+  }
+  if (!activeToken) await restoreAccessToken(workbookId, true);
+  return activeToken;
+}
+
+function withSessionStorageLock<T>(action: () => T): Promise<T> {
+  const locks = window.navigator?.locks;
+  return locks ? locks.request(tokenStorageKey, action) : Promise.resolve(action());
+}
+
+/** Clear only the session used by the failed request, including across tabs. */
+export function invalidateAccessSession(session: AccessSession): Promise<boolean> {
+  return withSessionStorageLock(() => {
+    const token = activeToken;
+    if (token !== session) return false;
+    activeToken = undefined;
+    try {
+      if (token.remembered !== undefined) {
+        const storage = window.localStorage;
+        if (storage.getItem(tokenStorageKey) !== token.remembered) return false;
+        storage.removeItem(tokenStorageKey);
+      }
+    } catch {
+      // The rejected credential is still cleared in this tab.
+    }
+    return true;
+  });
 }
 
 export function clearAccessToken(): void {
   activeToken = undefined;
-  clearRememberedAccessToken();
+  try {
+    window.localStorage.removeItem(tokenStorageKey);
+  } catch {
+    /* Storage is optional. */
+  }
   try {
     window.sessionStorage.removeItem(tokenStorageKey);
   } catch {
@@ -111,12 +156,12 @@ export function clearAccessToken(): void {
   }
 }
 
-function clearRememberedAccessToken(expectedValue?: string): void {
+async function clearRememberedAccessToken(expectedValue: string): Promise<void> {
   try {
-    const storage = window.localStorage;
-    if (expectedValue === undefined || storage.getItem(tokenStorageKey) === expectedValue) {
-      storage.removeItem(tokenStorageKey);
-    }
+    await withSessionStorageLock(() => {
+      const storage = window.localStorage;
+      if (storage.getItem(tokenStorageKey) === expectedValue) storage.removeItem(tokenStorageKey);
+    });
   } catch {
     // The in-memory session still works when browser storage is unavailable.
   }
@@ -182,11 +227,13 @@ function decodeBytes(encoded: string): Uint8Array<ArrayBuffer> {
   return Uint8Array.from(window.atob(encoded), (character) => character.charCodeAt(0));
 }
 
-export async function rememberAccessToken(workbookId: string): Promise<void> {
+export async function rememberAccessToken(workbookId: string, session = getAccessSession()): Promise<void> {
   const token = activeToken;
-  if (!token || token.expiresAt <= Date.now()) return;
+  if (!token || token !== session || token.expiresAt <= Date.now()) return;
   try {
     const storage = window.localStorage;
+    const previous = storage.getItem(tokenStorageKey);
+    if (token.remembered !== undefined && token.remembered !== previous) return;
     const { expiresAt, value } = token;
     const key = await getTokenKey();
     const iv = window.crypto.getRandomValues(new Uint8Array(12));
@@ -195,15 +242,19 @@ export async function rememberAccessToken(workbookId: string): Promise<void> {
       key,
       new TextEncoder().encode(value),
     );
-    if (activeToken !== token || expiresAt <= Date.now()) return;
-
     const stored: RememberedToken = {
       workbookId,
       expiresAt,
       iv: encodeBytes(iv),
       ciphertext: encodeBytes(new Uint8Array(encrypted)),
     };
-    storage.setItem(tokenStorageKey, JSON.stringify(stored));
+    const serialized = JSON.stringify(stored);
+    await withSessionStorageLock(() => {
+      if (activeToken !== token || expiresAt <= Date.now() || storage.getItem(tokenStorageKey) !== previous)
+        return;
+      storage.setItem(tokenStorageKey, serialized);
+      token.remembered = serialized;
+    });
   } catch {
     // A reload will require reconnecting when browser storage is unavailable.
   }
@@ -218,8 +269,10 @@ export async function restoreAccessToken(workbookId: string, allowExpired = fals
     if (storage.getItem(tokenStorageKey) === null) {
       const legacy = window.sessionStorage.getItem(tokenStorageKey);
       if (legacy !== null) {
-        storage.setItem(tokenStorageKey, legacy);
-        window.sessionStorage.removeItem(tokenStorageKey);
+        await withSessionStorageLock(() => {
+          if (storage.getItem(tokenStorageKey) === null) storage.setItem(tokenStorageKey, legacy);
+          window.sessionStorage.removeItem(tokenStorageKey);
+        });
       }
     }
     serialized = storage.getItem(tokenStorageKey);
@@ -235,7 +288,7 @@ export async function restoreAccessToken(workbookId: string, allowExpired = fals
       typeof stored.iv !== 'string' ||
       typeof stored.ciphertext !== 'string'
     ) {
-      clearRememberedAccessToken(serialized);
+      await clearRememberedAccessToken(serialized);
       return false;
     }
     if (stored.workbookId !== workbookId) return false;
@@ -247,29 +300,35 @@ export async function restoreAccessToken(workbookId: string, allowExpired = fals
       key,
       decodeBytes(stored.ciphertext),
     );
-    if (activeToken !== currentToken || storage.getItem(tokenStorageKey) !== serialized) return false;
+    if (storage.getItem(tokenStorageKey) !== serialized) return false;
+    if (activeToken !== currentToken) {
+      // A storage listener and a waiting sync can restore the same login together.
+      return activeToken?.remembered === serialized && Boolean(getAccessSession(allowExpired));
+    }
 
     const value = new TextDecoder().decode(decrypted);
     if (!value || (!allowExpired && expiresAt <= Date.now())) {
-      clearRememberedAccessToken(serialized);
+      await clearRememberedAccessToken(serialized);
       return false;
     }
-    activeToken = { value, expiresAt };
+    activeToken = { value, expiresAt, remembered: serialized };
     return true;
   } catch {
-    if (serialized !== null) clearRememberedAccessToken(serialized);
+    if (serialized !== null) await clearRememberedAccessToken(serialized);
     return false;
   }
 }
 
 export function watchAccessToken(workbookId: string, onChange: (authorized: boolean) => void): () => void {
   let watching = true;
+  let latestChange = 0;
   const changed = (event: StorageEvent) => {
     if (event.storageArea !== window.localStorage || (event.key !== tokenStorageKey && event.key !== null))
       return;
+    const change = ++latestChange;
     activeToken = undefined;
     void restoreAccessToken(workbookId, true).then((authorized) => {
-      if (watching) onChange(authorized);
+      if (watching && change === latestChange) onChange(authorized);
     });
   };
   window.addEventListener('storage', changed);

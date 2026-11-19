@@ -7,6 +7,7 @@ import ts from 'typescript';
 
 function googleSession(stored = new Map<string, string>(), key?: CryptoKey) {
   let now = 1_000;
+  let responseToken = 'test-token';
   const legacy = new Map<string, string>();
   const listeners = new Set<(event: unknown) => void>();
   const storage = {
@@ -24,6 +25,9 @@ function googleSession(stored = new Map<string, string>(), key?: CryptoKey) {
   const exports: {
     requestGoogleAccess: () => Promise<string>;
     getAccessToken: (allowExpired?: boolean) => string | undefined;
+    getAccessSession: (allowExpired?: boolean) => { value: string } | undefined;
+    getSyncAccessSession: (id: string) => Promise<{ value: string } | undefined>;
+    invalidateAccessSession: (session: { value: string }) => Promise<boolean>;
     clearAccessToken: () => void;
     rememberAccessToken: (id: string) => Promise<void>;
     restoreAccessToken: (id: string, allowExpired?: boolean) => Promise<boolean>;
@@ -77,7 +81,7 @@ function googleSession(stored = new Map<string, string>(), key?: CryptoKey) {
             initTokenClient: ({ callback }: { callback: (response: unknown) => void }) => ({
               requestAccessToken: () =>
                 callback({
-                  access_token: 'test-token',
+                  access_token: responseToken,
                   expires_in: 60,
                   scope: 'https://www.googleapis.com/auth/drive.file',
                 }),
@@ -91,6 +95,9 @@ function googleSession(stored = new Map<string, string>(), key?: CryptoKey) {
     api: exports,
     stored,
     legacy,
+    setResponseToken: (value: string) => {
+      responseToken = value;
+    },
     notify: () =>
       listeners.forEach((listener) => listener({ storageArea: storage, key: 'piecom-google-session' })),
     expire: () => {
@@ -173,4 +180,67 @@ test('an existing tab migrates its encrypted session', async () => {
   assert.equal(await first.api.restoreAccessToken('workbook'), true);
   assert.equal(first.legacy.size, 0);
   assert.equal(first.stored.get('piecom-google-session'), saved);
+});
+
+test('a failed request cannot clear a newer login in the same tab', async () => {
+  const [tab] = await sharedSessions();
+  await tab.api.requestGoogleAccess();
+  await tab.api.rememberAccessToken('workbook');
+  const rejected = tab.api.getAccessSession()!;
+
+  // Google can return the same token value. It is still a separate login.
+  await tab.api.requestGoogleAccess();
+  await tab.api.rememberAccessToken('workbook');
+  const renewed = tab.api.getAccessSession()!;
+  const remembered = tab.stored.get('piecom-google-session');
+
+  assert.equal(await tab.api.invalidateAccessSession(rejected), false);
+  assert.equal(tab.api.getAccessSession(), renewed);
+  assert.equal(tab.stored.get('piecom-google-session'), remembered);
+  assert.equal(await tab.api.invalidateAccessSession(renewed), true);
+  assert.equal(tab.api.getAccessToken(true), undefined);
+  assert.equal(tab.stored.has('piecom-google-session'), false);
+});
+
+test('a failed request preserves a login renewed in another tab before storage events arrive', async () => {
+  const [syncing, reconnecting] = await sharedSessions();
+  await syncing.api.requestGoogleAccess();
+  await syncing.api.rememberAccessToken('workbook');
+  const rejected = (await syncing.api.getSyncAccessSession('workbook'))!;
+
+  reconnecting.setResponseToken('renewed-token');
+  await reconnecting.api.requestGoogleAccess();
+  await reconnecting.api.rememberAccessToken('workbook');
+  const remembered = reconnecting.stored.get('piecom-google-session');
+
+  // The tab waiting for the workbook lock has not received the storage event yet.
+  await syncing.api.rememberAccessToken('workbook');
+  assert.equal(await syncing.api.invalidateAccessSession(rejected), false);
+  assert.equal(syncing.stored.get('piecom-google-session'), remembered);
+  assert.equal((await syncing.api.getSyncAccessSession('workbook'))?.value, 'renewed-token');
+});
+
+test('a waiting sync reads the newest shared login even without a storage notification', async () => {
+  const [syncing, reconnecting] = await sharedSessions();
+  await syncing.api.requestGoogleAccess();
+  await syncing.api.rememberAccessToken('workbook');
+  assert.equal(syncing.api.getAccessToken(), 'test-token');
+
+  reconnecting.setResponseToken('renewed-token');
+  await reconnecting.api.requestGoogleAccess();
+  await reconnecting.api.rememberAccessToken('workbook');
+
+  assert.equal((await syncing.api.getSyncAccessSession('workbook'))?.value, 'renewed-token');
+});
+
+test('concurrent restores both recognize the same shared session', async () => {
+  const [first, second] = await sharedSessions();
+  await first.api.requestGoogleAccess();
+  await first.api.rememberAccessToken('workbook');
+  const results = await Promise.all([
+    second.api.restoreAccessToken('workbook', true),
+    second.api.restoreAccessToken('workbook', true),
+  ]);
+  assert.deepEqual(results, [true, true]);
+  assert.equal(second.api.getAccessToken(), 'test-token');
 });

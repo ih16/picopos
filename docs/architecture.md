@@ -4,7 +4,7 @@ picopos is a static, browser-owned Qwik application. Google Sheets is the shared
 
 ## Boundaries
 
-`routes/index.tsx` mounts `app/workspace.tsx`. The workspace composes screens and shared controls. Before a workbook loads, a static backdrop keeps demo records and feature state out of the prerendered HTML. The real demo is created when users enter or restore demo mode. `use-workspace-navigation.ts` owns URL/tab state; `use-workbook.ts` owns connection, local edits, and sync lifecycle. Feature components own their forms, filters, and display state.
+`routes/index.tsx` mounts `app/workspace.tsx`. The workspace composes screens and shared controls. Before a workbook loads, a static backdrop keeps demo records and feature state out of the prerendered HTML. The real demo is created when users enter or restore demo mode. `use-workspace-navigation.ts` owns URL/tab state; `use-workbook.ts` owns connection, local edits, and sync lifecycle. Feature components own their forms, filters, and display state. Business Settings keeps an overlay for edited fields and preserves the original values used to queue those edits. Background sync refreshes the untouched fields.
 
 The domain must remain independent of Qwik, browser storage, and Google APIs. `workbook.ts` defines persisted records and validation; `outbox.ts` merges field-level edits and projects pending changes. Infrastructure owns effects: Google authorization, Sheets requests/schema upgrades, and OPFS reads/writes. Infrastructure uses domain rules, never UI components. Shared UI must not import feature components. Sync interval choices and parsing live in the domain; browser preferences and timing keys live in infrastructure.
 
@@ -15,7 +15,7 @@ The orders feature separates creation, detail/list views, return receipt, and pr
 1. A form sends a typed `RowChange[]` plus its original edited rows.
 2. The local write lock reads the latest snapshot, merges only edited fields, validates, and atomically closes the new OPFS file.
 3. The outbox projects unblocked edits into the visible workbook. BroadcastChannel notifies other tabs.
-4. The separate sync lock serializes network sync for a workbook across tabs. Each sync reads fresh Sheets data, checks compatibility before writing migrations, validates pending changes, and reads back the batch before acknowledging it.
+4. The separate sync lock serializes network sync for a workbook across tabs. Sync resolves Google authorization after acquiring the lock. A rejected request can invalidate only the session it used. If a different session has replaced it, sync can retry once from fresh Sheets data and the latest local outbox. Each sync reads fresh Sheets data, checks compatibility before writing migrations, validates pending changes, and reads back the batch before acknowledging it.
 5. `sync-workbook-queue.ts` reconciles each confirmed result against the latest local snapshot. The captured queue can span several batches while edits saved during sync stay queued for the next run. A failed or uncertain write retains queued edits. Stable record IDs and readback allow the next sync to recognize applied changes. Never retry a POST directly.
 
 Sheets reads have a 30-second deadline per attempt and at most three attempts for network failures, rate limits, and server errors. Retry delays grow exponentially with jitter. Writes have the same deadline but no automatic transport retry.
@@ -65,7 +65,6 @@ See [workbook schema](workbook.md) before changing persisted fields and [trouble
 
 ## Refactor priorities
 
-1. Protect active sessions and drafts. A Sheets failure from an older request can clear authorization renewed by another tab. Make invalidation conditional on the credential actually used. Business Settings currently refreshes editable fields when synced values change. Preserve dirty fields and their edit baselines across a refresh.
-2. Add built-browser smoke coverage for workbook setup, deep links, open-tab draft preservation, and offline reload before splitting larger feature components or reorganizing the shared stylesheet. Keep browser-specific listeners where browser initialization or synchronous popup handling requires them.
-3. Profile large workbooks before changing persistence. Pending edits currently rewrite the encrypted workbook snapshot. Measure write latency and memory with representative data and photos before considering a journal. For expensive domain calculations, start by reusing validated projections and deriving inventory only where a rule needs it.
-4. If stock updates must be strictly serialized across devices, move that invariant to a transactional shared store. The browser locks and Sheets batch requests cover different boundaries, as described in [production limitations](production.md#storage-and-concurrency-limits).
+1. Add built-browser smoke coverage for workbook setup, deep links, open-tab draft preservation, and offline reload before splitting larger feature components or reorganizing the shared stylesheet. Keep browser-specific listeners where browser initialization or synchronous popup handling requires them.
+2. Profile large workbooks before changing persistence. Pending edits currently rewrite the encrypted workbook snapshot. Measure write latency and memory with representative data and photos before considering a journal. For expensive domain calculations, start by reusing validated projections and deriving inventory only where a rule needs it.
+3. If stock updates must be strictly serialized across devices, move that invariant to a transactional shared store. The browser locks and Sheets batch requests cover different boundaries, as described in [production limitations](production.md#storage-and-concurrency-limits).

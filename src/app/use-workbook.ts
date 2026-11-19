@@ -29,7 +29,9 @@ import {
 } from '../infrastructure/storage/sync-timing';
 import {
   clearAccessToken,
-  getAccessToken,
+  getAccessSession,
+  getSyncAccessSession,
+  invalidateAccessSession,
   rememberAccessToken,
   restoreAccessToken,
   watchAccessToken,
@@ -102,7 +104,6 @@ export function useWorkbook(error: Signal<string>, navigation: ReturnType<typeof
 
   const reportSyncFailure = $((cause: unknown, reconnecting: boolean) => {
     if (cause instanceof SheetsError && cause.status === 401) {
-      clearAccessToken();
       expired.value = true;
       syncError.value = '';
       authError.value = local.value ? '' : cause.message;
@@ -124,19 +125,9 @@ export function useWorkbook(error: Signal<string>, navigation: ReturnType<typeof
     syncing.value = true;
     if (mode) authError.value = '';
     try {
-      let token = getAccessToken(true);
-      if (!token) {
-        await restoreAccessToken(id, true);
-        token = getAccessToken(true);
-      }
-      if (!token) {
-        expired.value = true;
-        return;
-      }
-      const accessToken = token;
       await getWorkbookLocks().request(syncLock(id), { ifAvailable: !mode }, async (lock) => {
         if (!lock) return;
-        const before = await readLocalWorkbook(id);
+        let before = await readLocalWorkbook(id);
         const previousAttempt = Math.max(readSyncAttempt(id), lastAttempt.value);
         const startedAt = Date.now();
         lastAttempt.value = previousAttempt;
@@ -148,25 +139,47 @@ export function useWorkbook(error: Signal<string>, navigation: ReturnType<typeof
           await showLocal(before);
           return;
         }
+
+        // Resolve credentials after acquiring the lock since another tab may
+        // have reconnected while this sync was waiting.
+        let credential = await getSyncAccessSession(id);
+        if (!credential) {
+          expired.value = true;
+          return;
+        }
         lastAttempt.value = startedAt;
         storeSyncTiming(syncAttemptKey(id), startedAt);
 
-        await syncWorkbookQueue({
-          pending: before?.pending ?? [],
-          syncBatch: (pending) => syncWorkbookBatch(accessToken, id, pending),
-          updateLocal: (update) => updateLocalWorkbook(id, update),
-          onSnapshot: showLocal,
-        });
-        if (reconnecting) await rememberAccessToken(id);
+        for (let attempt = 0; ; attempt++) {
+          const usedSession = credential;
+          try {
+            await syncWorkbookQueue({
+              pending: before?.pending ?? [],
+              syncBatch: (pending) => syncWorkbookBatch(usedSession.value, id, pending),
+              updateLocal: (update) => updateLocalWorkbook(id, update),
+              onSnapshot: showLocal,
+            });
+            break;
+          } catch (cause) {
+            if (!(cause instanceof SheetsError) || ![401, 403, 404].includes(cause.status ?? 0)) throw cause;
+            if (await invalidateAccessSession(usedSession)) {
+              if (cause.status !== 401 && local.value) expired.value = true;
+              throw cause;
+            }
+            const renewed = await getSyncAccessSession(id);
+            expired.value = !renewed;
+            if (!renewed || renewed.value === usedSession.value || attempt > 0) return;
+            // Re-read the outbox and Sheets with the renewed credential. Never replay a raw write.
+            credential = renewed;
+            before = await readLocalWorkbook(id);
+          }
+        }
+        if (reconnecting) await rememberAccessToken(id, credential);
         expired.value = false;
         syncError.value = '';
         authError.value = '';
       });
     } catch (cause) {
-      if (cause instanceof SheetsError && (cause.status === 403 || cause.status === 404)) {
-        clearAccessToken();
-        if (local.value) expired.value = true;
-      }
       await reportSyncFailure(cause, reconnecting || expired.value);
     } finally {
       syncing.value = false;
@@ -326,8 +339,8 @@ export function useWorkbook(error: Signal<string>, navigation: ReturnType<typeof
   const connect = $(
     async (selection: SpreadsheetSelection, setup?: { settings: RowChange[]; interval: string }) => {
       if (busy.value || syncing.value) return;
-      const token = getAccessToken();
-      if (!token) {
+      const session = getAccessSession();
+      if (!session) {
         if (setup)
           authError.value = 'Google authorization expired. Cancel setup and select the workbook again.';
         else expired.value = true;
@@ -337,7 +350,7 @@ export function useWorkbook(error: Signal<string>, navigation: ReturnType<typeof
       authError.value = '';
       try {
         await getWorkbookLocks().request(syncLock(selection.id), async () => {
-          const selected = await initializeWorkbook(token, selection.id, setup?.settings);
+          const selected = await initializeWorkbook(session.value, selection.id, setup?.settings);
           if (!selected) {
             setupSelection.value = selection;
             return;
@@ -350,7 +363,7 @@ export function useWorkbook(error: Signal<string>, navigation: ReturnType<typeof
             pending: previous?.pending ?? [],
             lastSyncedAt: Date.now(),
           }));
-          await rememberAccessToken(selected.id);
+          await rememberAccessToken(selected.id, session);
           if ((saved.value && saved.value.id !== selected.id) || demo.value) {
             await reset();
           }
@@ -372,6 +385,9 @@ export function useWorkbook(error: Signal<string>, navigation: ReturnType<typeof
           void navigator.storage.persist?.().catch(() => {});
         });
       } catch (cause) {
+        if (cause instanceof SheetsError && cause.status === 401) {
+          if (!(await invalidateAccessSession(session))) return;
+        }
         if (setup)
           authError.value = cause instanceof Error ? cause.message : 'Could not save workbook setup.';
         else await reportSyncFailure(cause, true);
