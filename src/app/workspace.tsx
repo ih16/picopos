@@ -61,12 +61,14 @@ export default component$(() => {
     leaveDemo,
   } = useWorkbook(error, navigation);
   const loginOpen = useSignal(false);
+  const pickerActive = useSignal(false);
   const preview = useSignal<Workbook>({ id: 'preview', title: 'Fieldwork Supply', data: demoWorkbook() });
   useTask$(({ track }) => {
     const checking = track(() => checkingSavedSession.value);
     const selection = track(() => saved.value);
     const current = track(() => workbook.value);
-    loginOpen.value = !checking && !selection && !current;
+    const choosing = track(() => pickerActive.value);
+    loginOpen.value = !checking && !selection && !current && !choosing;
   });
   const customerLabels = useComputed$(() => {
     const labels = new Map<string, string>();
@@ -88,6 +90,7 @@ export default component$(() => {
   const reconnecting = Boolean(local.value && !demo.value && expired.value);
   const connection = (
     <Connection
+      pickerActive={pickerActive}
       saved={saved.value}
       authorized={Boolean(local.value && !demo.value && !expired.value)}
       reauthorizing={reconnecting}
@@ -106,7 +109,8 @@ export default component$(() => {
         title="Welcome to picopos"
         class="login-modal"
         onClose$={async () => {
-          if (!checkingSavedSession.value && !saved.value && !workbook.value) await openDemo();
+          if (!pickerActive.value && !checkingSavedSession.value && !saved.value && !workbook.value)
+            await openDemo();
         }}
       >
         <div class="stack">

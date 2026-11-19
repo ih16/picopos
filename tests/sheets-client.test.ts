@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { request, SheetsError } from '../src/infrastructure/google/sheets-client.ts';
+import { createSpreadsheet, request, SheetsError } from '../src/infrastructure/google/sheets-client.ts';
 
 const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
 
@@ -91,4 +91,30 @@ test('rate-limited reads stop after three attempts', async (t) => {
   t.mock.timers.tick(2_000);
   await rejected;
   assert.equal(fetch.mock.callCount(), 3);
+});
+
+test('new workbooks use a recognizable filename and the Sheets creation endpoint', async (t) => {
+  const fetch = t.mock.method(globalThis, 'fetch', async (url: URL, options: RequestInit) => {
+    assert.equal(url.href, 'https://sheets.googleapis.com/v4/spreadsheets');
+    assert.equal(options.method, 'POST');
+    assert.equal(new Headers(options.headers).get('Authorization'), 'Bearer token');
+    assert.deepEqual(JSON.parse(options.body as string), { properties: { title: 'picopos · Tiny Steps' } });
+    return Response.json({ spreadsheetId: 'new-book', properties: { title: 'picopos · Tiny Steps' } });
+  });
+  assert.deepEqual(await createSpreadsheet('token', '  Tiny Steps  '), {
+    id: 'new-book',
+    name: 'picopos · Tiny Steps',
+  });
+  assert.equal(fetch.mock.callCount(), 1);
+});
+
+test('uncertain workbook creation directs users to find the file and never retries', async (t) => {
+  const fetch = t.mock.method(globalThis, 'fetch', async () => {
+    throw new TypeError('Connection lost');
+  });
+  await assert.rejects(createSpreadsheet('token', ''), /Choose an existing workbook/);
+  assert.equal(fetch.mock.callCount(), 1);
+  assert.deepEqual(JSON.parse((fetch.mock.calls[0].arguments[1] as RequestInit).body as string), {
+    properties: { title: 'picopos · My shop' },
+  });
 });

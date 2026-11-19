@@ -41,6 +41,7 @@ interface OAuth2 {
 
 interface DocsView {
   setMode(mode: string): DocsView;
+  setQuery(query: string): DocsView;
   setMimeTypes(mimeTypes: string): DocsView;
 }
 
@@ -406,7 +407,8 @@ export async function pickSpreadsheet(
   return new Promise((resolve, reject) => {
     const view = new api.DocsView(api.ViewId.SPREADSHEETS)
       .setMode(api.DocsViewMode.LIST)
-      .setMimeTypes(spreadsheetMimeType);
+      .setMimeTypes(spreadsheetMimeType)
+      .setQuery('picopos');
 
     const close = () => {
       signal?.removeEventListener('abort', cancel);

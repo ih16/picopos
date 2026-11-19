@@ -71,3 +71,28 @@ export async function request<T>(
     }
   }
 }
+
+export async function createSpreadsheet(
+  token: string,
+  shopName: string,
+): Promise<{ id: string; name: string }> {
+  const name = `picopos · ${shopName.trim() || 'My shop'}`;
+  try {
+    const spreadsheet = await sendRequest<{ spreadsheetId: string; properties: { title: string } }>(
+      new URL('https://sheets.googleapis.com/v4/spreadsheets'),
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ properties: { title: name } }),
+      },
+    );
+    return { id: spreadsheet.spreadsheetId, name: spreadsheet.properties.title };
+  } catch (cause) {
+    if (cause instanceof SheetsNetworkError) {
+      throw new Error(
+        'Workbook creation could not be confirmed. Choose an existing workbook to check for it before creating another.',
+      );
+    }
+    throw cause;
+  }
+}

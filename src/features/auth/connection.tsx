@@ -15,11 +15,13 @@ import {
   requestGoogleAccess,
   type SpreadsheetSelection,
 } from '../../infrastructure/google/google';
+import { createSpreadsheet } from '../../infrastructure/google/sheets-client';
 import { Button, Panel } from '../../shared/ui/controls';
 import { Icon } from '../../shared/ui/icon';
 
 interface GoogleConnectionProps {
   saved?: SpreadsheetSelection;
+  pickerActive?: Signal<boolean>;
   busy?: boolean;
   offline?: boolean;
   error?: string;
@@ -66,6 +68,8 @@ export const ReconnectNotice = component$(() => {
 export const Connection = component$<ConnectionProps>((props) => {
   const connectButton = useSignal<HTMLButtonElement>();
   const pickerButton = useSignal<HTMLButtonElement>();
+  const createButton = useSignal<HTMLButtonElement>();
+  const shopName = useSignal('My shop');
   const accountButton = useSignal<HTMLButtonElement>();
   const ready = useSignal(false);
   const pending = useSignal(false);
@@ -78,16 +82,17 @@ export const Connection = component$<ConnectionProps>((props) => {
     ({ track, cleanup }) => {
       const connect = track(() => connectButton.value);
       const choose = track(() => pickerButton.value);
+      const create = track(() => createButton.value);
       const account = track(() => accountButton.value);
       track(() => loadAttempt.value);
       const offline = track(() => props.offline);
-      if (!isGoogleConfigured || offline || (!connect && !choose && !account)) return;
+      if (!isGoogleConfigured || offline || (!connect && !choose && !create && !account)) return;
 
       const controller = new AbortController();
       const { signal } = controller;
       ready.value = false;
       loadingFailed.value = false;
-      const select = async (action: 'saved' | 'picker' | 'account') => {
+      const select = async (action: 'saved' | 'picker' | 'account' | 'create') => {
         if (!ready.value || pending.value || props.busy) return;
         pending.value = true;
         error.value = '';
@@ -95,12 +100,36 @@ export const Connection = component$<ConnectionProps>((props) => {
           const cachedToken = props.reconnectOnly || action === 'account' ? undefined : getAccessToken();
           const token = cachedToken ?? (await requestGoogleAccess(signal, action !== 'saved'));
           if (signal.aborted) return;
-          const selection = action === 'picker' ? await pickSpreadsheet(token, signal) : props.saved;
+          if (action === 'picker' && props.pickerActive) {
+            // Native modal dialogs sit above Google's picker. Wait for the welcome
+            // dialog to leave the top layer before opening the file chooser.
+            const dialog = choose?.closest('dialog');
+            const closed = new Promise<void>((resolve) => {
+              if (!dialog?.open) return resolve();
+              const finish = () => {
+                dialog.removeEventListener('close', finish);
+                signal.removeEventListener('abort', finish);
+                resolve();
+              };
+              dialog.addEventListener('close', finish, { once: true });
+              signal.addEventListener('abort', finish, { once: true });
+            });
+            props.pickerActive.value = true;
+            await closed;
+            if (signal.aborted) return;
+          }
+          const selection =
+            action === 'picker'
+              ? await pickSpreadsheet(token, signal)
+              : action === 'create'
+                ? await createSpreadsheet(token, shopName.value)
+                : props.saved;
           if (!signal.aborted && selection) await props.onSelect$(selection);
         } catch (cause) {
           if (!signal.aborted)
             error.value = cause instanceof Error ? cause.message : 'Unable to open the workbook.';
         } finally {
+          if (props.pickerActive) props.pickerActive.value = false;
           pending.value = false;
         }
       };
@@ -111,11 +140,15 @@ export const Connection = component$<ConnectionProps>((props) => {
       const openPicker = () => {
         void select('picker');
       };
+      const createWorkbook = () => {
+        void select('create');
+      };
       const chooseAccount = () => {
         void select('account');
       };
       connect?.addEventListener('click', reconnect);
       choose?.addEventListener('click', openPicker);
+      create?.addEventListener('click', createWorkbook);
       account?.addEventListener('click', chooseAccount);
 
       void prepareGoogle()
@@ -132,6 +165,7 @@ export const Connection = component$<ConnectionProps>((props) => {
         controller.abort();
         connect?.removeEventListener('click', reconnect);
         choose?.removeEventListener('click', openPicker);
+        create?.removeEventListener('click', createWorkbook);
         account?.removeEventListener('click', chooseAccount);
       });
     },
@@ -169,8 +203,8 @@ export const Connection = component$<ConnectionProps>((props) => {
           <p class="eyebrow">Google Sheets</p>
           <h2>{authorized ? 'Workbook connection' : 'Connect a workbook'}</h2>
           <p class="muted">
-            Choose a spreadsheet you can edit. Anyone using this workspace connects with their own Google
-            account.
+            Create a workbook for your shop or choose an existing one you can edit. Each person connects with
+            their own Google account.
           </p>
         </div>
       )}
@@ -196,20 +230,33 @@ export const Connection = component$<ConnectionProps>((props) => {
         </p>
       )}
 
+      {isGoogleConfigured && !reconnectOnly && (
+        <label class="field">
+          <span>Shop name for a new workbook</span>
+          <input type="text" bind:value={shopName} disabled={busy} placeholder="My shop" />
+          <span class="muted">New file: picopos · {shopName.value.trim() || 'My shop'}</span>
+        </label>
+      )}
+      {!reconnectOnly && (
+        <p class="muted">
+          The chooser searches for “picopos” files. To use an older workbook, add “picopos” to its filename in
+          Google Drive first.
+        </p>
+      )}
       <div class="row">
+        {isGoogleConfigured && !reconnectOnly && (
+          <Button type="button" elementRef={createButton} disabled={disabled}>
+            Create new workbook
+          </Button>
+        )}
         {isGoogleConfigured && canReconnect && (
           <Button type="button" elementRef={connectButton} disabled={disabled}>
             {reconnectOnly ? 'Reconnect' : 'Reconnect saved workbook'}
           </Button>
         )}
         {isGoogleConfigured && !reconnectOnly && (
-          <Button
-            type="button"
-            class={props.saved && !authorized ? 'secondary' : undefined}
-            elementRef={pickerButton}
-            disabled={disabled}
-          >
-            {props.saved ? 'Choose another spreadsheet' : 'Choose a spreadsheet'}
+          <Button type="button" class="secondary" elementRef={pickerButton} disabled={disabled}>
+            Choose existing workbook
           </Button>
         )}
         {isGoogleConfigured && canReconnect && (

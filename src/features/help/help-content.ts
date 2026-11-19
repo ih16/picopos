@@ -20,7 +20,7 @@ const topics: HelpTopic[] = [
       {
         title: 'Connect Google Sheets',
         paragraphs: [
-          'Create a blank Google spreadsheet, then choose a spreadsheet from the welcome screen or Settings. Sign in with a Google account that can edit the file. picopos creates its managed tabs and leaves unrelated tabs alone.',
+          'From the welcome screen or Settings, enter your shop name and select Create new workbook, or select Choose existing workbook. New files are named “picopos · Your shop”. The chooser searches for “picopos”; add it to an older workbook’s filename in Google Drive first. Sign in with an account that can edit the file. picopos creates its managed tabs and leaves unrelated tabs alone.',
           'Your workbook holds products, variants, customers, orders, order items, returns, stock entries, purchase lots, categories, and settings. Keep managed headers and record IDs intact when editing Sheets directly.',
         ],
       },
