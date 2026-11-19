@@ -1,70 +1,205 @@
 import { money as formatMoney } from '../../shared/lib/format';
 import { workbookCurrency } from '../../domain/settings';
-import { component$, useContext, useSignal } from '@builder.io/qwik';
+import { component$, useContext, useSignal, useVisibleTask$ } from '@builder.io/qwik';
 import { ScreenNavigation } from '../../app/navigation/screen-navigation';
-import { dashboardSummary } from '../../domain/dashboard';
+import {
+  dashboardSummary,
+  dashboardOrderDays,
+  dashboardDateRange,
+  dashboardPresetRange,
+} from '../../domain/dashboard';
 import type { WorkbookData } from '../../domain/workbook';
-import { Button, Panel, Table } from '../../shared/ui/controls';
+import { Button, Panel, Modal, Input } from '../../shared/ui/controls';
 import { ProductLabel } from '../../shared/ui/product-thumbnail';
 
 const colors = ['#8993aa', '#a38be0', '#5c9ed6', '#4caa91', '#d98585'];
 
 export const Dashboard = component$<{ data: WorkbookData }>(({ data }) => {
   const days = useSignal(30);
+  const customStart = useSignal('');
+  const customEnd = useSignal('');
+  const rangeOpen = useSignal(false);
+  const draftStart = useSignal('');
+  const draftEnd = useSignal('');
+  const availableDays = dashboardOrderDays(data);
+  const firstDay = availableDays[0];
+  const lastDay = availableDays.at(-1);
+  const customRange = dashboardDateRange(customStart.value, customEnd.value, availableDays);
+  const draftRange =
+    draftStart.value >= firstDay && draftEnd.value <= (lastDay ?? '')
+      ? dashboardDateRange(draftStart.value, draftEnd.value, availableDays)
+      : undefined;
+  const periodDays = customRange?.days ?? days.value;
+  const periodLabel = customRange ? `${customStart.value} – ${customEnd.value}` : `last ${days.value} days`;
+  const intervals = Math.max(1, periodDays - 1);
+  const chart = useSignal<SVGSVGElement>();
+  const chartWidth = useSignal(700);
+  useVisibleTask$(({ cleanup }) => {
+    const element = chart.value;
+    if (!element) return;
+    const measure = () => {
+      chartWidth.value = element.getBoundingClientRect().width;
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    cleanup(() => observer.disconnect());
+  });
+  const plotWidth = chartWidth.value - 68;
+  const activeDay = useSignal<number>();
+  const showCost = useSignal(false);
   const { navigate$ } = useContext(ScreenNavigation);
-  const summary = dashboardSummary(data, days.value);
+  const summary = dashboardSummary(data, periodDays, customRange?.end);
   const currency = workbookCurrency(data);
   const money = (value: number) => formatMoney(value, currency);
-  const max = Math.max(1, ...summary.trend.map((day) => day.value));
-  const points = summary.trend
-    .map(
-      (day, index) => `${48 + (index * 632) / (summary.trend.length - 1)},${184 - (day.value / max) * 150}`,
+  const max = Math.max(
+    1,
+    ...summary.trend.map((day) => Math.max(day.value, showCost.value ? (day.cost ?? 0) : 0)),
+  );
+  const costPath = summary.trend
+    .map((day, index) =>
+      day.cost === null
+        ? ''
+        : `${index === 0 || summary.trend[index - 1].cost === null ? 'M' : 'L'}${48 + (index * plotWidth) / intervals},${184 - (day.cost / max) * 150}`,
     )
     .join(' ');
+  const uncostedUnits = summary.trend.reduce((sum, day) => sum + day.uncostedUnits, 0);
+  const estimatedCost = uncostedUnits ? null : summary.trend.reduce((sum, day) => sum + (day.cost ?? 0), 0);
+  const points = summary.trend
+    .map((day, index) => `${48 + (index * plotWidth) / intervals},${184 - (day.value / max) * 150}`)
+    .join(' ');
+  const highlighted = activeDay.value === undefined ? undefined : summary.trend[activeDay.value];
+  const tooltipX = Math.min(
+    chartWidth.value - 244,
+    Math.max(48, 48 + ((activeDay.value ?? 0) * plotWidth) / intervals - 112),
+  );
+  const tooltipY = highlighted
+    ? Math.max(0, 184 - (highlighted.value / max) * 150 - (showCost.value ? 122 : 100))
+    : 0;
   const topUnits = Math.max(1, ...summary.products.map((product) => product.units));
   let offset = 0;
   return (
     <section class="dashboard-page">
       <header class="dashboard-header">
         <div>
-          <h1>Business overview</h1>
-          <p class="muted">A clear view of orders, sales, and stock.</p>
+          <h1>Sales report</h1>
+          <p class="muted">Sales performance, top products, and outstanding payments.</p>
         </div>
         <div class="row catalog-tabs" role="group" aria-label="Dashboard period">
           {[7, 30, 90].map((period) => (
             <Button
               key={period}
-              class={days.value === period ? '' : 'secondary'}
-              aria-pressed={days.value === period}
+              class={!customRange && days.value === period ? '' : 'secondary'}
+              aria-pressed={!customRange && days.value === period}
+              disabled={
+                !dashboardDateRange(
+                  dashboardPresetRange(period).start,
+                  dashboardPresetRange(period).end,
+                  availableDays,
+                )
+              }
               onClick$={() => {
                 days.value = period;
+                customStart.value = '';
+                customEnd.value = '';
+                activeDay.value = undefined;
               }}
             >
               {period} days
             </Button>
           ))}
+          <Button
+            class={customRange ? '' : 'secondary'}
+            disabled={!availableDays.length}
+            aria-pressed={Boolean(customRange)}
+            onClick$={() => {
+              draftStart.value = customRange ? customStart.value : firstDay;
+              draftEnd.value = customRange ? customEnd.value : lastDay!;
+              rangeOpen.value = true;
+            }}
+          >
+            {customRange ? periodLabel : 'Date range'}
+          </Button>
         </div>
       </header>
+      <Modal open={rangeOpen} title="Select date range">
+        <div class="stack">
+          <p class="muted">
+            Available order history: {firstDay} – {lastDay}
+          </p>
+          <label>
+            From
+            <Input
+              type="date"
+              min={firstDay}
+              max={draftEnd.value || lastDay}
+              value={draftStart.value}
+              onInput$={(_, element) => {
+                draftStart.value = element.value;
+              }}
+            />
+          </label>
+          <label>
+            To
+            <Input
+              type="date"
+              min={draftStart.value || firstDay}
+              max={lastDay}
+              value={draftEnd.value}
+              onInput$={(_, element) => {
+                draftEnd.value = element.value;
+              }}
+            />
+          </label>
+          {!draftRange && (
+            <p class="muted" role="status">
+              Choose a valid range within the available history containing at least one order.
+            </p>
+          )}
+          <div class="row">
+            <Button
+              class="secondary"
+              onClick$={() => {
+                rangeOpen.value = false;
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={!draftRange}
+              onClick$={() => {
+                if (!draftRange) return;
+                customStart.value = draftStart.value;
+                customEnd.value = draftEnd.value;
+                activeDay.value = undefined;
+                rangeOpen.value = false;
+              }}
+            >
+              Apply range
+            </Button>
+          </div>
+        </div>
+      </Modal>
       <div class="dashboard-scroll stack">
         <dl class="dashboard-metrics">
           {[
             {
-              label: 'Fulfilled order value',
+              label: 'Sales value',
               value: money(summary.value),
-              detail: `${summary.fulfilled} shipped or completed orders`,
+              detail: `${summary.sales} confirmed orders`,
             },
             {
               label: 'Orders placed',
               value: summary.orders.toLocaleString(),
-              detail: `All states · last ${days.value} days`,
+              detail: `All states · ${periodLabel}`,
             },
             {
-              label: 'Average fulfilled order',
+              label: 'Average sale',
               value: money(summary.average),
-              detail: 'Per shipped or completed order',
+              detail: 'Per confirmed order',
             },
             {
-              label: 'Unpaid order value',
+              label: 'Outstanding payments',
               value: money(summary.unpaid),
               detail: 'In progress, shipped & completed',
             },
@@ -78,24 +213,70 @@ export const Dashboard = component$<{ data: WorkbookData }>(({ data }) => {
         </dl>
         <div class="dashboard-charts">
           <Panel class="stack dashboard-trend">
-            <div class="panel-heading">
+            <div class="panel-heading dashboard-trend-heading">
               <div>
-                <h2>Fulfilled order trend</h2>
+                <h2>Sales trend</h2>
                 <p class="muted">By order creation date · {currency}</p>
               </div>
-              <span class="dashboard-highlight">{money(summary.value)}</span>
+              <dl class="dashboard-trend-totals">
+                <div>
+                  <dt>Sales</dt>
+                  <dd class="dashboard-highlight">{money(summary.value)}</dd>
+                </div>
+                {showCost.value && (
+                  <>
+                    <div>
+                      <dt>Estimated cost</dt>
+                      <dd class="dashboard-total-cost">
+                        {estimatedCost === null ? 'Unavailable' : money(estimatedCost)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Estimated profit</dt>
+                      <dd>{estimatedCost === null ? 'Unavailable' : money(summary.value - estimatedCost)}</dd>
+                    </div>
+                  </>
+                )}
+              </dl>
+            </div>
+            <div class="panel-heading">
+              <div class="row dashboard-chart-legend">
+                <span>
+                  <i style={{ background: 'var(--dashboard-accent)' }} />
+                  Sales
+                </span>
+                {showCost.value && (
+                  <span>
+                    <i style={{ background: 'var(--dashboard-cost)' }} />
+                    Estimated cost
+                  </span>
+                )}
+              </div>
+              <Button
+                class="secondary compact"
+                aria-pressed={showCost.value}
+                onClick$={() => {
+                  showCost.value = !showCost.value;
+                }}
+              >
+                {showCost.value ? 'Hide cost' : 'Show cost'}
+              </Button>
             </div>
             <svg
               class="dashboard-line-chart"
-              viewBox="0 0 700 225"
-              role="img"
-              aria-label={`Fulfilled order value over the last ${days.value} days: ${money(summary.value)}`}
+              ref={chart}
+              viewBox={`0 0 ${chartWidth.value} 225`}
+              role="group"
+              onPointerLeave$={() => {
+                activeDay.value = undefined;
+              }}
+              aria-label={`Sales value for ${periodLabel}: ${money(summary.value)}`}
             >
               {[0, 0.5, 1].map((fraction) => (
                 <g key={fraction}>
                   <line
                     x1="48"
-                    x2="680"
+                    x2={chartWidth.value - 20}
                     y1={184 - fraction * 150}
                     y2={184 - fraction * 150}
                     class="dashboard-gridline"
@@ -108,60 +289,140 @@ export const Dashboard = component$<{ data: WorkbookData }>(({ data }) => {
                   </text>
                 </g>
               ))}
-              <polygon points={`48,184 ${points} 680,184`} fill="var(--dashboard-accent)" opacity=".1" />
+              {periodDays > 1 && (
+                <polygon
+                  points={`48,184 ${points} ${chartWidth.value - 20},184`}
+                  fill="var(--dashboard-accent)"
+                  opacity=".1"
+                />
+              )}
               <polyline
                 points={points}
                 fill="none"
                 stroke="var(--dashboard-accent)"
-                stroke-width="3"
+                stroke-width="2"
                 stroke-linejoin="round"
               />
+              {showCost.value && (
+                <path
+                  class="dashboard-cost-line"
+                  d={costPath}
+                  fill="none"
+                  stroke="var(--dashboard-cost)"
+                  stroke-width="2"
+                  stroke-dasharray="6 4"
+                  stroke-linejoin="round"
+                />
+              )}
               {summary.trend.map((day, index) => (
-                <circle
-                  key={day.day}
-                  cx={48 + (index * 632) / (summary.trend.length - 1)}
-                  cy={184 - (day.value / max) * 150}
-                  r={day.value ? 4 : 2}
-                  fill="var(--dashboard-accent)"
-                >
-                  <title>{`${day.day}: ${money(day.value)} · ${day.orders} orders placed`}</title>
-                </circle>
+                <g key={day.day}>
+                  {showCost.value && day.cost !== null && (
+                    <circle
+                      cx={48 + (index * plotWidth) / intervals}
+                      cy={184 - (day.cost / max) * 150}
+                      r={activeDay.value === index ? 4 : 3}
+                      class="dashboard-cost-point"
+                      fill="var(--dashboard-cost)"
+                      onPointerEnter$={() => {
+                        activeDay.value = index;
+                      }}
+                      onPointerLeave$={() => {
+                        activeDay.value = undefined;
+                      }}
+                      onClick$={() => {
+                        activeDay.value = index;
+                      }}
+                    />
+                  )}
+
+                  <circle
+                    cx={48 + (index * plotWidth) / intervals}
+                    cy={184 - (day.value / max) * 150}
+                    r={activeDay.value === index ? 4 : day.value ? 3 : 2}
+                    fill="var(--dashboard-accent)"
+                    pointer-events="none"
+                  />
+                  <circle
+                    class="dashboard-chart-point"
+                    cx={48 + (index * plotWidth) / intervals}
+                    cy={184 - (day.value / max) * 150}
+                    r="9"
+                    fill="transparent"
+                    tabindex={0}
+                    role="img"
+                    aria-label={`${day.day}: ${money(day.value)} · ${day.sales} sales${showCost.value ? ` · Estimated cost: ${day.cost === null ? 'Unavailable' : money(day.cost)}` : ''} · Estimated profit: ${day.cost === null ? 'Unavailable' : money(day.value - day.cost)}`}
+                    onPointerEnter$={() => {
+                      activeDay.value = index;
+                    }}
+                    onPointerLeave$={() => {
+                      activeDay.value = undefined;
+                    }}
+                    onFocus$={() => {
+                      activeDay.value = index;
+                    }}
+                    onBlur$={() => {
+                      activeDay.value = undefined;
+                    }}
+                    onClick$={() => {
+                      activeDay.value = index;
+                    }}
+                    onKeyDown$={(event) => {
+                      if (event.key === 'Escape') activeDay.value = undefined;
+                    }}
+                  />
+                </g>
               ))}
-              {[0, Math.floor((days.value - 1) / 2), days.value - 1].map((index) => (
+              {[...new Set([0, Math.floor((periodDays - 1) / 2), periodDays - 1])].map((index) => (
                 <text
                   key={index}
-                  x={48 + (index * 632) / (days.value - 1)}
+                  x={48 + (index * plotWidth) / intervals}
                   y="213"
-                  text-anchor={index === 0 ? 'start' : index === days.value - 1 ? 'end' : 'middle'}
+                  text-anchor={index === 0 ? 'start' : index === periodDays - 1 ? 'end' : 'middle'}
                 >
                   {summary.trend[index].day.slice(5)}
                 </text>
               ))}
+              {highlighted && (
+                <g
+                  class="dashboard-chart-tooltip"
+                  transform={`translate(${tooltipX} ${tooltipY})`}
+                  pointer-events="none"
+                  aria-hidden="true"
+                >
+                  <rect width="224" height={showCost.value ? 112 : 90} rx="8" />
+                  <text x="12" y="20">
+                    {highlighted.day}
+                  </text>
+                  <text x="12" y="40" class="dashboard-tooltip-value">
+                    Sales: {money(highlighted.value)}
+                  </text>
+                  {showCost.value && (
+                    <text x="12" y="58">
+                      Cost: {highlighted.cost === null ? 'Unavailable' : money(highlighted.cost)}
+                    </text>
+                  )}
+                  <text x="12" y={showCost.value ? 78 : 58}>
+                    Est. profit:{' '}
+                    {highlighted.cost === null ? 'Unavailable' : money(highlighted.value - highlighted.cost)}
+                  </text>
+                  <text x="12" y={showCost.value ? 98 : 78}>
+                    {highlighted.sales} sales
+                  </text>
+                </g>
+              )}
             </svg>
-            {!summary.fulfilled && <p class="muted">No fulfilled orders in this period.</p>}
-            <details class="dashboard-data">
-              <summary>View daily values</summary>
-              <Table>
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th class="numeric">Orders</th>
-                    <th class="numeric">Fulfilled value</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {summary.trend.map((day) => (
-                    <tr key={day.day}>
-                      <td>{day.day}</td>
-                      <td class="numeric">{day.orders}</td>
-                      <td class="numeric">{money(day.value)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </Table>
-            </details>
+            {showCost.value && (
+              <p class="muted">
+                Estimated product cost uses quantity-weighted purchase-lot averages recorded by each sale
+                date; excludes delivery and operating expenses.
+                {uncostedUnits > 0
+                  ? ` Costs missing for ${uncostedUnits} sold units; affected days have gaps.`
+                  : ''}
+              </p>
+            )}
+            {!summary.sales && <p class="muted">No sales in this period.</p>}
           </Panel>
-          <Panel class="stack">
+          <Panel class="stack dashboard-summary-card">
             <div>
               <h2>Order status</h2>
               <p class="muted">Orders placed in this period</p>
@@ -213,13 +474,13 @@ export const Dashboard = component$<{ data: WorkbookData }>(({ data }) => {
               </ul>
             </div>
           </Panel>
-          <Panel class="stack">
+          <Panel class="stack dashboard-summary-card">
             <div>
               <h2>Top products</h2>
-              <p class="muted">Units on shipped & completed orders · before returns</p>
+              <p class="muted">Units sold on confirmed orders · before returns</p>
             </div>
             {summary.products.length ? (
-              <ol class="dashboard-bars">
+              <ol class="dashboard-bars" tabIndex={0} aria-label="Top products by units sold">
                 {summary.products.map((product) => (
                   <li key={product.id}>
                     <div class="panel-heading">
@@ -238,10 +499,10 @@ export const Dashboard = component$<{ data: WorkbookData }>(({ data }) => {
                 ))}
               </ol>
             ) : (
-              <p class="empty">Products will appear when orders are shipped.</p>
+              <p class="empty">Products will appear when orders are confirmed.</p>
             )}
           </Panel>
-          <Panel class="stack">
+          <Panel class="stack dashboard-inventory">
             <div class="panel-heading">
               <div>
                 <h2>Inventory health</h2>
@@ -291,11 +552,6 @@ export const Dashboard = component$<{ data: WorkbookData }>(({ data }) => {
             )}
           </Panel>
         </div>
-        <p class="dashboard-footnote muted">
-          Order metrics use creation dates in your local time zone. Fulfilled value includes discounts and
-          shipping; refunded orders are excluded. Returns are not deducted because refund amounts are not
-          recorded. These figures are not profit or cash received.
-        </p>
       </div>
     </section>
   );

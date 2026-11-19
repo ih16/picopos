@@ -22,10 +22,10 @@ export const customerPath = (key: string) => `/customers/${encodeURIComponent(ke
 export const orderPath = (id: string) => `/orders/${encodeURIComponent(id)}`;
 
 export function parseScreenRoute(value: string): ScreenRoute {
-  const path = value.replace(/^#/, '').replace(/\/+$/, '') || '/orders';
+  const path = value.replace(/^#/, '').replace(/\/+$/, '') || '/dashboard';
   const route: ScreenRoute = {
-    page: 'Orders',
-    path: '/orders',
+    page: 'Dashboard',
+    path: '/dashboard',
     orderId: '',
     customerKey: '',
     creating: false,
@@ -35,7 +35,7 @@ export function parseScreenRoute(value: string): ScreenRoute {
   for (const [page, base] of Object.entries(PAGE_PATHS)) {
     if (path === base) return { ...route, page: page as Page, path };
   }
-  if (path === '/orders/new') return { ...route, path, creating: true };
+  if (path === '/orders/new') return { ...route, page: 'Orders', path, creating: true };
   if (path === '/catalog/categories') return { ...route, page: 'Catalog', path, catalogPage: 'categories' };
   if (path === '/inventory/entries') return { ...route, page: 'Inventory', path, inventoryPage: 'entries' };
   if (path === '/inventory/lots') return { ...route, page: 'Inventory', path, inventoryPage: 'lots' };
@@ -52,9 +52,9 @@ export function parseScreenRoute(value: string): ScreenRoute {
   if (match) {
     try {
       const orderId = decodeURIComponent(match[1]);
-      return { ...route, path: orderPath(orderId), orderId };
+      return { ...route, page: 'Orders', path: orderPath(orderId), orderId };
     } catch {
-      /* Malformed URLs fall back to the order list. */
+      /* Malformed URLs fall back to the dashboard. */
     }
   }
   return route;

@@ -43,14 +43,14 @@ npm ci
 npm run dev
 ```
 
-Open the URL printed by Vite, normally `http://localhost:5173`, and choose **Try the demo**. No Google credentials are needed for the demo; its changes stay in memory and reset when you reload or leave it.
+Open the URL printed by Vite, normally `http://localhost:8899`, and choose **Try the demo**. No Google credentials are needed for the demo; its changes stay in memory and reset when you reload or leave it.
 
 Make shortcuts are also available: `make install`, `make dev`, and `make help`. See the [development guide](docs/development.md) for environment modes, custom ports, and local previews.
 
 ## Connect Google Sheets
 
 1. **Configure a Google Cloud project.** Enable the Google Sheets API and Google Picker API.
-2. **Create an OAuth client.** Configure the consent screen and create a **Web application** client. Add the exact JavaScript origins you will use, such as `http://localhost:5173` and your production HTTPS origin. Add test users while the OAuth app is in testing mode.
+2. **Create an OAuth client.** Configure the consent screen and create a **Web application** client. Add the exact JavaScript origins you will use, such as `http://localhost:8899` and your production HTTPS origin. Add test users while the OAuth app is in testing mode.
 3. **Create a Picker API key.** Use the same Cloud project. Restrict the key to the Google Picker API and configure website restrictions for your app and `https://docs.google.com/*`.
 4. **Set the public browser configuration.** Copy `.env.example` to `.env.local` if you do not already have local configuration, then fill in:
 

@@ -5,7 +5,7 @@ export function dashboardSummary(data: WorkbookData, days: number, now = new Dat
   const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - days + 1);
   const trend = Array.from({ length: days }, (_, index) => {
     const date = new Date(start.getFullYear(), start.getMonth(), start.getDate() + index);
-    return { day: dayKey(date), value: 0, orders: 0 };
+    return { day: dayKey(date), value: 0, orders: 0, sales: 0, cost: 0 as number | null, uncostedUnits: 0 };
   });
   const byDay = new Map(trend.map((day) => [day.day, day]));
   const orders = data.Orders.filter((order) => {
@@ -17,23 +17,56 @@ export function dashboardSummary(data: WorkbookData, days: number, now = new Dat
     subtotals.set(item.orderId, (subtotals.get(item.orderId) ?? 0) + item.quantity * item.unitPrice);
   const orderTotal = (order: (typeof orders)[number]) =>
     (subtotals.get(order.id) ?? 0) - order.discount + order.shippingCharge;
-  const fulfilled = orders.filter((order) => isShipped(order.status) && order.paymentStatus !== 'Refunded');
-  const fulfilledIds = new Set(fulfilled.map((order) => order.id));
+  const sales = orders.filter(
+    (order) =>
+      (order.status === 'In progress' || isShipped(order.status)) && order.paymentStatus !== 'Refunded',
+  );
+  const saleIds = new Set(sales.map((order) => order.id));
   let value = 0;
   for (const order of orders) {
     const day = byDay.get(dayKey(new Date(order.createdAt)))!;
     day.orders++;
-    if (fulfilledIds.has(order.id)) {
+    if (saleIds.has(order.id)) {
       const total = orderTotal(order);
       day.value += total;
+      day.sales++;
       value += total;
     }
   }
   const variants = new Map(data.Variants.map((variant) => [variant.id, variant]));
   const productNames = new Map(data.Products.map((product) => [product.id, product.name]));
+  const saleDates = new Map(sales.map((order) => [order.id, new Date(order.createdAt)]));
+  const lots = new Map(data['Purchase Lots'].map((lot) => [lot.id, lot]));
+  const receipts = new Map<string, { date: number; units: number; cost: number }[]>();
+  for (const entry of data['Stock Entries']) {
+    if ((entry.type !== 'Opening stock' && entry.type !== 'Receipt') || entry.onHandDelta <= 0) continue;
+    const lot = entry.purchaseLotId && lots.get(entry.purchaseLotId);
+    if (!lot || lot.totalUnits <= 0) continue;
+    const rows = receipts.get(entry.variantId) ?? [];
+    rows.push({
+      date: new Date(entry.date).getTime(),
+      units: entry.onHandDelta,
+      cost: lot.totalAmount / lot.totalUnits,
+    });
+    receipts.set(entry.variantId, rows);
+  }
   const products = new Map<string, { id: string; name: string; units: number }>();
   for (const item of data['Order Items']) {
-    if (!fulfilledIds.has(item.orderId)) continue;
+    if (!saleIds.has(item.orderId)) continue;
+    const saleDate = saleDates.get(item.orderId)!;
+    const day = byDay.get(dayKey(saleDate))!;
+    const purchased = (receipts.get(item.variantId) ?? []).filter(
+      (receipt) => receipt.date <= saleDate.getTime(),
+    );
+    const units = purchased.reduce((sum, receipt) => sum + receipt.units, 0);
+    if (units) {
+      if (day.cost !== null)
+        day.cost +=
+          (item.quantity * purchased.reduce((sum, receipt) => sum + receipt.units * receipt.cost, 0)) / units;
+    } else {
+      day.cost = null;
+      day.uncostedUnits += item.quantity;
+    }
     const id = variants.get(item.variantId)?.productId ?? item.productName;
     const product = products.get(id) ?? { id, name: productNames.get(id) ?? item.productName, units: 0 };
     product.units += item.quantity;
@@ -65,8 +98,8 @@ export function dashboardSummary(data: WorkbookData, days: number, now = new Dat
   return {
     orders: orders.length,
     value,
-    fulfilled: fulfilled.length,
-    average: fulfilled.length ? value / fulfilled.length : 0,
+    sales: sales.length,
+    average: sales.length ? value / sales.length : 0,
     unpaid: orders
       .filter(
         (order) =>
@@ -86,4 +119,37 @@ export function dashboardSummary(data: WorkbookData, days: number, now = new Dat
 
 function dayKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+export function dashboardOrderDays(data: WorkbookData) {
+  return [
+    ...new Set(
+      data.Orders.map((order) => new Date(order.createdAt))
+        .filter((date) => Number.isFinite(date.getTime()))
+        .map(dayKey),
+    ),
+  ].sort();
+}
+
+export function dashboardDateRange(start: string, end: string, availableDays: string[]) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end) || start > end) return;
+  const from = new Date(`${start}T00:00:00`);
+  const to = new Date(`${end}T00:00:00`);
+  if (
+    !Number.isFinite(from.getTime()) ||
+    !Number.isFinite(to.getTime()) ||
+    dayKey(from) !== start ||
+    dayKey(to) !== end
+  )
+    return;
+  if (!availableDays.some((day) => day >= start && day <= end)) return;
+  // Count calendar days independently of local daylight-saving changes.
+  return { days: Math.round((Date.parse(end) - Date.parse(start)) / 86400000) + 1, end: to };
+}
+
+export function dashboardPresetRange(days: number, now = new Date()) {
+  return {
+    start: dayKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() - days + 1)),
+    end: dayKey(now),
+  };
 }

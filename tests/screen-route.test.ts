@@ -16,6 +16,7 @@ test('screen links restore each workspace destination', () => {
   }
   assert.equal(parseScreenRoute('#/catalog/categories').catalogPage, 'categories');
   assert.equal(parseScreenRoute('#/orders/new').creating, true);
+  assert.equal(parseScreenRoute('#/orders/new').page, 'Orders');
   assert.equal(parseScreenRoute('#/orders/new').orderId, '');
 });
 
@@ -31,7 +32,8 @@ test('order links round-trip IDs without treating their contents as routes', () 
 
 test('empty, unknown and malformed routes have a safe canonical destination', () => {
   for (const path of ['', '#', '#/', '#/missing', '#/orders/%', '#/orders/a/b']) {
-    assert.equal(parseScreenRoute(path).path, '/orders');
+    assert.equal(parseScreenRoute(path).path, '/dashboard');
+    assert.equal(parseScreenRoute(path).page, 'Dashboard');
   }
   assert.equal(parseScreenRoute('#/catalog/categories/').path, '/catalog/categories');
 });
@@ -62,7 +64,7 @@ test('customer detail routes preserve saved and historical identities', async ()
     assert.equal(route.customerKey, key);
     assert.equal(route.path, customerPath(key));
   }
-  assert.equal(parseScreenRoute('/customers/%').path, '/orders');
+  assert.equal(parseScreenRoute('/customers/%').path, '/dashboard');
 });
 
 test('detail and creation tabs are independent of their lists and reopen without duplicates', async () => {

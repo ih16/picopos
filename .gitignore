@@ -38,3 +38,8 @@ output/
 
 # Required application branding (favicon, UI mark, and offline shell).
 !/public/picopos-mark.svg
+
+# Browser-captured help screenshots, caption tracks, and walkthrough videos.
+!/public/help/
+!/public/help/examples/
+!/public/help/examples/**

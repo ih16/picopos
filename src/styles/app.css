@@ -214,9 +214,21 @@ svg {
   margin: var(--space-2) 0 0;
 }
 .demo-notice {
+  position: fixed;
+  left: 50%;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 9;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  margin: 0;
+  transform: translateX(-50%);
   font-size: 0.84rem;
+  text-align: center;
   background: var(--glass-raised);
-  justify-self: start;
+  border-color: var(--glass-border);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  pointer-events: none;
 }
 
 .button {
@@ -1741,7 +1753,8 @@ body:has(.workspace) {
 }
 .workspace-sidebar {
   top: var(--space-5);
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: var(--space-5);
 }
 .workspace-sidebar .primary-nav {
@@ -2108,9 +2121,6 @@ body:has(.workspace) {
 }
 .orders-page .journey-stage {
   min-height: 120px;
-}
-.main-content > .demo-notice {
-  align-self: flex-start;
 }
 
 /* Keep list controls outside the scrolling records, and pin desktop column labels. */
@@ -2597,6 +2607,27 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
 .product-variants[hidden] {
   display: none;
 }
+.product-variants .data-table {
+  table-layout: fixed;
+}
+.product-variants .data-table th:nth-child(1) {
+  width: 30%;
+}
+.product-variants .data-table th:nth-child(2) {
+  width: 28%;
+}
+.product-variants .data-table th:nth-child(3) {
+  width: 16%;
+}
+.product-variants .data-table th:nth-child(4) {
+  width: 16%;
+}
+.product-variants .data-table th:last-child {
+  width: 10%;
+}
+.product-variants .data-table td:last-child {
+  text-align: right;
+}
 
 @container (max-width: 600px) {
   .product-head .product-actions {
@@ -2681,6 +2712,7 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
 
 .dashboard-page {
   --dashboard-accent: #4caa91;
+  --dashboard-cost: #d69c59;
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -2732,7 +2764,7 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
 }
 .dashboard-charts {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px;
 }
 .dashboard-charts > .panel {
@@ -2740,13 +2772,52 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
   align-content: start;
   min-width: 0;
 }
+.dashboard-trend,
+.dashboard-inventory {
+  grid-column: 1 / -1;
+}
+.dashboard-inventory .dashboard-low-stock {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 32px;
+}
+.dashboard-cost-line {
+  animation: dashboard-cost-reveal 450ms ease-out both;
+}
+.dashboard-cost-point {
+  animation: dashboard-cost-fade 450ms ease-out both;
+}
+@keyframes dashboard-cost-reveal {
+  from {
+    clip-path: inset(0 100% 0 0);
+    opacity: 0;
+  }
+  to {
+    clip-path: inset(0);
+    opacity: 1;
+  }
+}
+@keyframes dashboard-cost-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-cost-line,
+  .dashboard-cost-point {
+    animation: none;
+  }
+}
 .dashboard-highlight {
   font-weight: 700;
   color: var(--dashboard-accent);
 }
 .dashboard-line-chart {
+  display: block;
   width: 100%;
-  height: auto;
+  height: 225px;
 }
 .dashboard-charts svg text {
   fill: var(--ink-muted);
@@ -2757,14 +2828,22 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
   stroke: var(--line);
   stroke-dasharray: 3 5;
 }
+.dashboard-charts > .dashboard-summary-card {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 360px;
+  align-content: stretch;
+}
 .dashboard-status {
   display: flex;
   align-items: center;
   gap: 22px;
 }
 .dashboard-status svg {
-  width: 45%;
-  max-width: 185px;
+  width: 48%;
+  max-width: 260px;
+  max-height: 100%;
+  flex-shrink: 0;
 }
 .dashboard-status .dashboard-donut-total {
   font-size: 28px;
@@ -2792,6 +2871,11 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
   border-radius: 50%;
 }
 .dashboard-bars {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  align-content: start;
   list-style: none;
   padding: 0;
   margin: 0;
@@ -2847,22 +2931,31 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
 .dashboard-low-stock li > span {
   flex-shrink: 0;
 }
-.dashboard-data {
-  font-size: 0.8rem;
-  color: var(--ink-muted);
+.dashboard-chart-point {
+  cursor: crosshair;
 }
-.dashboard-data table {
-  margin-top: 12px;
+.dashboard-chart-point:focus-visible {
+  outline: none;
+  stroke: var(--dashboard-accent);
+  stroke-width: 2;
 }
-.dashboard-footnote {
-  font-size: 0.76rem;
-  max-width: 100ch;
+.dashboard-chart-tooltip rect {
+  fill: var(--surface-raised);
+  stroke: var(--line-strong);
+}
+.dashboard-charts .dashboard-chart-tooltip .dashboard-tooltip-value {
+  fill: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
 }
 @media (max-width: 1100px) {
   .dashboard-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .dashboard-charts {
+}
+@media (max-width: 800px) {
+  .dashboard-charts,
+  .dashboard-inventory .dashboard-low-stock {
     grid-template-columns: 1fr;
   }
 }
@@ -2879,6 +2972,9 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
   .dashboard-metric,
   .dashboard-charts > .panel {
     padding: 16px;
+  }
+  .dashboard-charts > .dashboard-summary-card {
+    height: 320px;
   }
   .dashboard-status {
     gap: 12px;
@@ -3088,4 +3184,265 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
 .category-list {
   align-content: start;
   padding: 2px;
+}
+
+.dashboard-chart-legend {
+  font-size: 0.8rem;
+}
+.dashboard-chart-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.dashboard-chart-legend i {
+  display: inline-block;
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.dashboard-trend-heading {
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.dashboard-trend-totals {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px 24px;
+  margin: 0 0 0 auto;
+  text-align: right;
+}
+.dashboard-trend-totals dt {
+  font-size: 0.72rem;
+  color: var(--ink-muted);
+}
+.dashboard-trend-totals dd {
+  margin: 4px 0 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+.dashboard-total-cost {
+  color: var(--dashboard-cost);
+}
+
+.workspace-sidebar-footer {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.workspace-sidebar-footer .nav-item {
+  width: 100%;
+}
+
+/* Help uses the workspace shell and the same cards, controls, and theme tokens. */
+.help-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 24px;
+}
+.help-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+.help-header h1 {
+  font-size: 2rem;
+  margin: 5px 0 8px;
+}
+.help-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(100%, 380px);
+}
+.help-search > svg {
+  width: 18px;
+  flex-shrink: 0;
+  color: var(--ink-muted);
+}
+.help-search input {
+  width: 100%;
+  min-width: 0;
+}
+.help-layout {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr);
+  gap: 24px;
+  flex: 1;
+  min-height: 0;
+}
+.help-topics {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+}
+.help-topics .nav-item {
+  text-align: left;
+  padding: 11px 12px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+.help-topics .selected {
+  color: var(--ink);
+  background: var(--glass-raised);
+  border-color: var(--glass-border);
+}
+.help-content {
+  min-width: 0;
+  overflow-y: auto;
+  padding: 2px 4px 20px 2px;
+}
+.help-result-count {
+  font-size: 0.8rem;
+  margin: 0 0 14px;
+}
+.help-section {
+  padding: 22px;
+  margin-bottom: 20px;
+}
+.help-section .panel-heading {
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.help-section .panel-heading p {
+  margin-top: 6px;
+  font-size: 0.85rem;
+  max-width: 65ch;
+}
+.help-section .button {
+  flex-shrink: 0;
+}
+.help-article {
+  border-top: 1px solid var(--line);
+  padding: 15px 0;
+}
+.help-article:last-child {
+  padding-bottom: 0;
+}
+.help-article summary {
+  cursor: pointer;
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.help-article-body {
+  max-width: 80ch;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  line-height: 1.75;
+}
+.help-article-body p,
+.help-article-body ol {
+  margin: 12px 0 0;
+}
+.help-article-body ol {
+  padding-left: 22px;
+}
+.help-article-body li + li {
+  margin-top: 6px;
+}
+.help-capture-note {
+  max-width: 80ch;
+  margin-top: 12px;
+  font-size: 0.85rem;
+}
+.help-example {
+  margin-top: 20px;
+}
+.help-example video,
+.help-example img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-input);
+  background: var(--surface-soft);
+}
+.help-example video {
+  aspect-ratio: 16 / 10;
+  object-fit: contain;
+}
+.help-example-steps li + li {
+  margin-top: 24px;
+}
+.help-example-steps a {
+  display: block;
+  margin-top: 10px;
+}
+.help-example-steps img {
+  max-height: 480px;
+  object-fit: contain;
+}
+@media (max-width: 1000px) {
+  .help-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 14px;
+  }
+  .help-topics {
+    flex-direction: row;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .help-topics .nav-item {
+    white-space: nowrap;
+  }
+}
+@media (max-width: 600px) {
+  .help-page {
+    gap: 14px;
+  }
+  .help-header h1 {
+    font-size: 1.6rem;
+  }
+  .help-header {
+    gap: 12px;
+  }
+  .help-section {
+    padding: 16px;
+  }
+}
+
+.help-topbar.topbar {
+  grid-template-columns: 210px minmax(0, 1fr) auto;
+}
+.help-topbar .help-search {
+  width: min(100%, 600px);
+}
+.help-document-body {
+  padding-top: 24px;
+}
+.help-document .help-content > .help-header {
+  margin-bottom: 20px;
+}
+.help-document .help-topics {
+  padding-right: 4px;
+}
+@media (max-width: 1000px) {
+  .help-topbar.topbar {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+}
+@media (max-width: 600px) {
+  .help-topbar.topbar {
+    gap: 12px;
+  }
+  .help-topbar .brand-wordmark {
+    display: none;
+  }
+  .help-topbar .help-search {
+    gap: 6px;
+  }
+  .help-document-body {
+    padding-top: 14px;
+  }
 }

@@ -1,0 +1,14 @@
+WEBVTT
+
+1
+00:00:00.000 --> 00:00:06.000
+An In progress order can remain Unpaid: fulfilment and payment are independent.
+
+2
+00:00:06.000 --> 00:00:12.000
+Payment status offers Unpaid, Paid, and Refunded. Refunded orders are excluded from report sales.
+
+3
+00:00:12.000 --> 00:00:18.000
+A completed order retains its payment status, item details, totals, and returns section.
+

@@ -15,7 +15,7 @@ runInNewContext(
 );
 const { dashboardSummary } = exports;
 
-test('dashboard separates fulfilled value, unpaid value, refunds and order states', () => {
+test('dashboard counts confirmed sales separately from unpaid balances, refunds and other order states', () => {
   const data = model.emptyWorkbook();
   const now = new Date(2026, 10, 18, 12);
   data.Orders = ['Draft', 'In progress', 'Shipped', 'Completed', 'Cancelled', 'Completed'].map(
@@ -45,12 +45,13 @@ test('dashboard separates fulfilled value, unpaid value, refunds and order state
   }));
   const result = dashboardSummary(data, 7, now);
   assert.equal(result.orders, 6);
-  assert.equal(result.fulfilled, 2);
-  assert.equal(result.value, 34);
+  assert.equal(result.sales, 3);
+  assert.equal(result.value, 51);
   assert.equal(result.average, 17);
+  assert.equal(result.trend.at(-1).sales, 3);
   assert.equal(result.unpaid, 34);
-  assert.equal(result.products[0].units, 4);
-  assert.equal(result.trend.at(-1).value, 34);
+  assert.equal(result.products[0].units, 6);
+  assert.equal(result.trend.at(-1).value, 51);
   assert.equal(
     result.statuses.reduce((sum: number, entry: any) => sum + entry.count, 0),
     6,
@@ -151,8 +152,105 @@ test('single-day summary isolates a selected historical local day including its 
   assert.equal(result.trend.length, 1);
   assert.equal(result.trend[0].day, '2026-11-12');
   assert.equal(result.orders, 2);
-  assert.equal(result.fulfilled, 2);
+  assert.equal(result.sales, 2);
   assert.equal(result.value, 46);
   assert.equal(result.average, 23);
   assert.equal(result.unpaid, 46);
+});
+
+test('sales costs weight earlier purchase receipts by units and leave unknown costs as gaps', () => {
+  const data = model.emptyWorkbook();
+  data['Purchase Lots'] = [
+    { id: 'a', name: 'Opening', totalAmount: 100, totalUnits: 10 },
+    { id: 'b', name: 'Restock', totalAmount: 600, totalUnits: 30 },
+    { id: 'future', name: 'Later', totalAmount: 1000, totalUnits: 10 },
+    { id: 'free', name: 'Samples', totalAmount: 0, totalUnits: 5 },
+  ];
+  data['Stock Entries'] = [
+    ['a', 'v', 10, '2026-11-01', 'Opening stock'],
+    ['b', 'v', 30, '2026-11-10', 'Receipt'],
+    ['future', 'v', 10, '2026-11-19', 'Receipt'],
+    ['future', 'v', 10, '2026-11-10', 'Adjustment'],
+    ['free', 'free', 5, '2026-11-01', 'Receipt'],
+  ].map(([lot, variantId, units, date, type], i) => ({
+    id: String(i),
+    purchaseLotId: String(lot),
+    variantId: String(variantId),
+    date: new Date(`${date}T00:00:00`).toISOString(),
+    type: type as model.StockType,
+    onHandDelta: Number(units),
+    unavailableDelta: 0,
+    notes: '',
+  }));
+  data.Orders = [
+    'In progress',
+    'Shipped',
+    'Completed',
+    'Draft',
+    'Cancelled',
+    'Completed',
+    'Completed',
+    'Completed',
+  ].map((status, i) => ({
+    id: String(i),
+    number: String(i),
+    createdAt: new Date(2026, 10, i === 6 ? 17 : 18, 12).toISOString(),
+    customer: 'Test',
+    contact: '',
+    address: '',
+    notes: '',
+    status: status as model.OrderStatus,
+    paymentStatus: i === 5 ? 'Refunded' : 'Paid',
+    discount: 0,
+    shippingCharge: 5,
+  }));
+  data['Order Items'] = data.Orders.map((order, i) => ({
+    id: order.id,
+    orderId: order.id,
+    variantId: i === 6 ? 'unknown' : i === 7 ? 'free' : 'v',
+    productName: 'Test',
+    variantName: '',
+    sku: 'TEST',
+    quantity: 2,
+    unitPrice: 30,
+  }));
+  const result = dashboardSummary(data, 7, new Date(2026, 10, 18, 12));
+  // (10 × $10 + 30 × $20) / 40 × 6 sold units; no future purchases or adjustments.
+  assert.equal(result.trend.at(-1).cost, 105);
+  assert.equal(result.trend.at(-1).uncostedUnits, 0);
+  assert.equal(result.trend.at(-2).cost, null);
+  assert.equal(result.trend.at(-2).uncostedUnits, 2);
+  assert.equal(result.trend[0].cost, 0);
+});
+
+test('date ranges use available order dates and reject empty or invalid selections', () => {
+  const { dashboardOrderDays, dashboardDateRange, dashboardPresetRange } = exports;
+  const data = model.emptyWorkbook();
+  const base = {
+    id: 'a',
+    number: 'A',
+    customer: 'Test',
+    contact: '',
+    address: '',
+    notes: '',
+    status: 'Draft' as const,
+    paymentStatus: 'Unpaid' as const,
+    discount: 0,
+    shippingCharge: 0,
+  };
+  data.Orders = ['2026-03-07T12:00:00', '2026-03-09T12:00:00', '2026-03-09T15:00:00', 'invalid'].map(
+    (date, i) => ({ ...base, id: String(i), createdAt: date }),
+  );
+  const available = dashboardOrderDays(data);
+  assert.equal(available.join(','), '2026-03-07,2026-03-09');
+  assert.equal(dashboardDateRange('2026-03-07', '2026-03-09', available).days, 3);
+  assert.equal(dashboardDateRange('2026-03-09', '2026-03-09', available).days, 1);
+  assert.equal(dashboardDateRange('2026-03-08', '2026-03-08', available), undefined);
+  assert.equal(dashboardDateRange('2026-03-09', '2026-03-07', available), undefined);
+  assert.equal(dashboardDateRange('2026-02-30', '2026-03-09', available), undefined);
+  assert.equal(dashboardDateRange('', '2026-03-09', available), undefined);
+  assert.equal(dashboardDateRange('2026-03-07', '2026-03-09', []), undefined);
+  const preset = dashboardPresetRange(7, new Date(2026, 2, 9));
+  assert.equal(preset.start, '2026-03-03');
+  assert.equal(preset.end, '2026-03-09');
 });

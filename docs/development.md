@@ -13,7 +13,7 @@ make install
 make dev
 ```
 
-Without Make, use `npm ci` and `npm run dev`. Install from `package-lock.json` with `npm ci` to use the locked dependency versions. Open the URL printed by Vite, normally `http://localhost:5173`, and choose **Try the demo**. Demo changes reset when you reload or leave it.
+Without Make, use `npm ci` and `npm run dev`. Install from `package-lock.json` with `npm ci` to use the locked dependency versions. Open the URL printed by Vite, normally `http://localhost:8899`, and choose **Try the demo**. Demo changes reset when you reload or leave it.
 
 For Google-connected development, create `.env.local` from `.env.example` if it does not already exist, fill in the three public Google identifiers, and restart the server. Keep existing local configuration when repeating setup. Follow [Google setup](../README.md#connect-google-sheets) and use a disposable workbook for development and migration testing.
 

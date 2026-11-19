@@ -1,0 +1,26 @@
+WEBVTT
+
+1
+00:00:00.000 --> 00:00:06.000
+Open Orders and select New order.
+
+2
+00:00:06.000 --> 00:00:12.000
+Expand Customer and enter a name, or select an existing saved customer.
+
+3
+00:00:12.000 --> 00:00:18.000
+Expand Order items, choose Market Tote / Natural, and set Quantity to 2. The item subtotal is USD 56.
+
+4
+00:00:18.000 --> 00:00:24.000
+Saving without a shipping option shows Choose a shipping option. Fill the missing field before retrying.
+
+5
+00:00:24.000 --> 00:00:30.000
+Expand Payment, discount and shipping and choose Local pickup. The previous validation message clears after a successful save.
+
+6
+00:00:30.000 --> 00:00:36.000
+Select Create draft. The saved order shows Draft and a USD 56 total; no stock is reserved yet.
+

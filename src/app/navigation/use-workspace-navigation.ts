@@ -2,9 +2,9 @@ import { $, useComputed$, useSignal, useStore, useVisibleTask$, type Signal } fr
 import { addScreenTab, PAGE_PATHS, parseScreenRoute, screenTabKey, type Page } from './screen-route';
 
 export function useWorkspaceNavigation(error: Signal<string>) {
-  const route = useSignal(parseScreenRoute('/orders'));
+  const route = useSignal(parseScreenRoute('/dashboard'));
   const page = useComputed$(() => route.value.page);
-  const openPages = useSignal<string[]>(['Orders']);
+  const openPages = useSignal<string[]>(['Dashboard']);
   const mobileTabsOpen = useSignal(false);
   const tabPaths = useStore<Record<string, string>>({ ...PAGE_PATHS });
   const navigate = $((path: string, replace = false, sourceKey?: string) => {
@@ -44,17 +44,17 @@ export function useWorkspaceNavigation(error: Signal<string>) {
   const closePage = $(async (closed: string) => {
     const index = openPages.value.indexOf(closed);
     const remaining = openPages.value.filter((item) => item !== closed);
-    openPages.value = remaining.length ? remaining : ['Orders'];
+    openPages.value = remaining.length ? remaining : ['Dashboard'];
     if (closed in PAGE_PATHS) tabPaths[closed] = PAGE_PATHS[closed as Page];
     else delete tabPaths[closed];
     if (screenTabKey(route.value) === closed)
-      await navigate(tabPaths[openPages.value[Math.max(0, index - 1)] ?? 'Orders']);
+      await navigate(tabPaths[openPages.value[Math.max(0, index - 1)] ?? 'Dashboard']);
   });
   const reset = $(async () => {
     for (const key of Object.keys(tabPaths)) delete tabPaths[key];
     Object.assign(tabPaths, PAGE_PATHS);
-    openPages.value = ['Orders'];
-    await navigate('/orders', true);
+    openPages.value = ['Dashboard'];
+    await navigate('/dashboard', true);
   });
   return { route, page, openPages, mobileTabsOpen, tabPaths, navigate, openPage, closePage, reset };
 }

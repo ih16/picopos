@@ -35,7 +35,7 @@ Run `npm run audit` against the installed lockfile for each release. Audit resul
 
 ## Preview and rollback
 
-`npm run preview` serves the built app, normally at `http://localhost:4173`; authorize that exact origin separately if testing Google connection there. The development origin is normally `http://localhost:5173`. Use the URL printed by Vite if a port is already occupied.
+`npm run preview` serves the built app, normally at `http://localhost:4173`; authorize that exact origin separately if testing Google connection there. The development origin is normally `http://localhost:8899`. Use the URL printed by Vite if a port is already occupied.
 
 Before rolling back, retain the previous complete `dist/` artifact and check compatibility with workbook columns and browser snapshots created by the newer release. Replacing static files does not undo Sheets migrations or local edits. After deployment, close all app tabs and reopen to allow a waiting worker to activate. Do not clear site data to force an update while edits are queued.
 

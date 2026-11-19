@@ -1,0 +1,10 @@
+WEBVTT
+
+1
+00:00:00.000 --> 00:00:06.000
+Settings contains Currency and shipping. Changing the currency does not convert existing amounts.
+
+2
+00:00:06.000 --> 00:00:12.000
+Select Add shipping option and enter Express delivery at USD 9.95. Save settings applies the change; use a zero rate for pickup.
+

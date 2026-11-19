@@ -239,6 +239,19 @@ export default component$(() => {
                 </Button>
               ))}
             </nav>
+            <footer class="workspace-sidebar-footer">
+              <a
+                class="nav-item"
+                href="/help/"
+                target="_blank"
+                rel="noopener"
+                title="Help (opens in a new tab)"
+                aria-label="Help (opens in a new tab)"
+              >
+                <Icon name="help" />
+                <span>Help</span>
+              </a>
+            </footer>
           </aside>
           <div class="workspace-main">
             <main class="main-content stack" aria-label={page.value}>
