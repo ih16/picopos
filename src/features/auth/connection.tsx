@@ -35,7 +35,7 @@ type ConnectionProps = GoogleConnectionProps &
         reconnectOnly?: false;
         authorized?: boolean;
         reauthorizing?: boolean;
-        onDemo$: QRL<() => void | Promise<void>>;
+        onDemo$?: QRL<() => void | Promise<void>>;
       }
   );
 
@@ -69,7 +69,7 @@ export const Connection = component$<ConnectionProps>((props) => {
   const connectButton = useSignal<HTMLButtonElement>();
   const pickerButton = useSignal<HTMLButtonElement>();
   const createButton = useSignal<HTMLButtonElement>();
-  const shopName = useSignal('My shop');
+  const shopName = useSignal('');
   const accountButton = useSignal<HTMLButtonElement>();
   const ready = useSignal(false);
   const pending = useSignal(false);
@@ -202,10 +202,7 @@ export const Connection = component$<ConnectionProps>((props) => {
         <div>
           <p class="eyebrow">Google Sheets</p>
           <h2>{authorized ? 'Workbook connection' : 'Connect a workbook'}</h2>
-          <p class="muted">
-            Create a workbook for your shop or choose an existing one you can edit. Each person connects with
-            their own Google account.
-          </p>
+          <p class="muted">Sign in with the Google account you use for your shop.</p>
         </div>
       )}
 
@@ -230,58 +227,67 @@ export const Connection = component$<ConnectionProps>((props) => {
         </p>
       )}
 
+      {((isGoogleConfigured && canReconnect) || loadingFailed.value) && (
+        <div class="row">
+          {isGoogleConfigured && canReconnect && (
+            <Button type="button" elementRef={connectButton} disabled={disabled}>
+              {reconnectOnly ? 'Reconnect' : 'Reconnect saved workbook'}
+            </Button>
+          )}
+          {isGoogleConfigured && canReconnect && (
+            <Button type="button" class="secondary" elementRef={accountButton} disabled={disabled}>
+              Use another Google account
+            </Button>
+          )}
+          {loadingFailed.value && (
+            <Button
+              type="button"
+              class="secondary"
+              onClick$={() => {
+                error.value = '';
+                loadAttempt.value += 1;
+              }}
+            >
+              Retry Google setup
+            </Button>
+          )}
+        </div>
+      )}
+
       {isGoogleConfigured && !reconnectOnly && (
-        <label class="field">
-          <span>Shop name for a new workbook</span>
-          <input type="text" bind:value={shopName} disabled={busy} placeholder="My shop" />
-          <span class="muted">New file: picopos · {shopName.value.trim() || 'My shop'}</span>
-        </label>
+        <div class="workbook-options">
+          <details class="workbook-create">
+            <summary class="workbook-option">
+              <Icon name="plus" />
+              <span>
+                <strong>Create a new workbook</strong>
+                <small>Start with a fresh spreadsheet in Google Drive.</small>
+              </span>
+            </summary>
+            <div class="workbook-create-fields">
+              <label class="field">
+                <span>Shop name</span>
+                <input type="text" bind:value={shopName} disabled={disabled} placeholder="My shop" />
+              </label>
+              <p class="muted workbook-filename">
+                File name: <strong>picopos · {shopName.value.trim() || 'My shop'}</strong>
+              </p>
+              <Button type="button" elementRef={createButton} disabled={disabled}>
+                Create workbook
+              </Button>
+            </div>
+          </details>
+          <Button unstyled class="workbook-option" elementRef={pickerButton} disabled={disabled}>
+            <Icon name="orders" />
+            <span>
+              <strong>{props.saved ? 'Choose another workbook' : 'Choose an existing workbook'}</strong>
+              <small>Find a picopos spreadsheet you can edit.</small>
+            </span>
+            <Icon name="arrow-right" />
+          </Button>
+          <p class="muted workbook-picker-hint">Missing a workbook? Search by its filename in the picker.</p>
+        </div>
       )}
-      {!reconnectOnly && (
-        <p class="muted">
-          The chooser searches for “picopos” files. To use an older workbook, add “picopos” to its filename in
-          Google Drive first.
-        </p>
-      )}
-      <div class="row">
-        {isGoogleConfigured && !reconnectOnly && (
-          <Button type="button" elementRef={createButton} disabled={disabled}>
-            Create new workbook
-          </Button>
-        )}
-        {isGoogleConfigured && canReconnect && (
-          <Button type="button" elementRef={connectButton} disabled={disabled}>
-            {reconnectOnly ? 'Reconnect' : 'Reconnect saved workbook'}
-          </Button>
-        )}
-        {isGoogleConfigured && !reconnectOnly && (
-          <Button type="button" class="secondary" elementRef={pickerButton} disabled={disabled}>
-            Choose existing workbook
-          </Button>
-        )}
-        {isGoogleConfigured && canReconnect && (
-          <Button type="button" class="secondary" elementRef={accountButton} disabled={disabled}>
-            Use another Google account
-          </Button>
-        )}
-        {loadingFailed.value && (
-          <Button
-            type="button"
-            class="secondary"
-            onClick$={() => {
-              error.value = '';
-              loadAttempt.value += 1;
-            }}
-          >
-            Retry Google setup
-          </Button>
-        )}
-        {!reconnectOnly && (
-          <Button type="button" class="secondary" onClick$={props.onDemo$} disabled={busy}>
-            Try the demo
-          </Button>
-        )}
-      </div>
 
       {isGoogleConfigured && !props.offline && !ready.value && !loadingFailed.value && (
         <p class="muted" role="status">
@@ -292,6 +298,17 @@ export const Connection = component$<ConnectionProps>((props) => {
         <p class="muted" role="status">
           Connecting to Google Sheets…
         </p>
+      )}
+      {!reconnectOnly && props.onDemo$ && (
+        <div class="workbook-demo">
+          <div>
+            <strong>Just looking?</strong>
+            <p class="muted">Explore with sample data. No sign-in needed.</p>
+          </div>
+          <Button type="button" class="secondary" onClick$={props.onDemo$} disabled={busy}>
+            Try the demo
+          </Button>
+        </div>
       )}
     </Panel>
   );

@@ -1,5 +1,5 @@
 import { money } from '../../shared/lib/format';
-import { workbookCurrency } from '../../domain/settings';
+import { workbookCurrency, workbookNumberFormat } from '../../domain/settings';
 import { component$, useContext, useSignal, useStore } from '@builder.io/qwik';
 import { ScreenNavigation } from '../../app/navigation/screen-navigation';
 import { orderPath } from '../../app/navigation/screen-route';
@@ -34,6 +34,7 @@ export const CreateOrder = component$<OrdersProps>(({ data, busy, onCommit$, sav
     shippingError = (cause as Error).message;
   }
   const currency = workbookCurrency(data);
+  const numberFormat = workbookNumberFormat(data);
   const products = new Map(data.Products.map((product) => [product.id, product]));
   const variants = new Map(data.Variants.map((variant) => [variant.id, variant]));
   const activeVariants = data.Variants.filter(
@@ -302,7 +303,7 @@ export const CreateOrder = component$<OrdersProps>(({ data, busy, onCommit$, sav
                             value: choice.id,
                             image: products.get(choice.productId)?.image,
                             imageName: products.get(choice.productId)?.name || 'Product',
-                            label: `${products.get(choice.productId)?.name ?? ''} · ${choice.optionValues || 'Default'} · ${choice.sku} · ${money(choice.price, currency)}`,
+                            label: `${products.get(choice.productId)?.name ?? ''} · ${choice.optionValues || 'Default'} · ${choice.sku} · ${money(choice.price, currency, numberFormat)}`,
                             disabled: draft.lines.some(
                               (other) => other.key !== line.key && other.variantId === choice.id,
                             ),
@@ -354,8 +355,10 @@ export const CreateOrder = component$<OrdersProps>(({ data, busy, onCommit$, sav
                           </div>
                           {variant && (
                             <div class="order-line-price">
-                              <strong>{money(variant.price * (line.quantity || 0), currency)}</strong>
-                              <span class="muted">{money(variant.price, currency)} each</span>
+                              <strong>
+                                {money(variant.price * (line.quantity || 0), currency, numberFormat)}
+                              </strong>
+                              <span class="muted">{money(variant.price, currency, numberFormat)} each</span>
                             </div>
                           )}
                         </div>
@@ -423,7 +426,7 @@ export const CreateOrder = component$<OrdersProps>(({ data, busy, onCommit$, sav
                     placeholder="Choose shipping"
                     options={shippingOptions.map((option) => ({
                       value: option.id,
-                      label: `${option.name} · ${money(option.rate, currency)}`,
+                      label: `${option.name} · ${money(option.rate, currency, numberFormat)}`,
                     }))}
                     onChange$={(value) => {
                       draft.shippingOptionId = value;
@@ -463,7 +466,7 @@ export const CreateOrder = component$<OrdersProps>(({ data, busy, onCommit$, sav
           {!error.value && saveError && <p class="notice error order-save-error">{saveError}</p>}
           <div class="order-save-total">
             <span class="muted">Total · {quantityLabel(totalUnits)}</span>
-            <strong>{money(draftTotal, currency)}</strong>
+            <strong>{money(draftTotal, currency, numberFormat)}</strong>
           </div>
           <Button class="secondary" disabled={busy} onClick$={close$}>
             Cancel

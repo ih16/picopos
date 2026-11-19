@@ -1,4 +1,5 @@
-import { workbookCurrency } from '../../domain/settings';
+import { decimalAmount } from '../../shared/lib/format';
+import { workbookCurrency, workbookNumberFormat } from '../../domain/settings';
 import { $, component$, useSignal, type QRL } from '@builder.io/qwik';
 import {
   makeId,
@@ -34,6 +35,7 @@ export const PurchaseLots = component$<{
     open.value = true;
   });
   const currency = workbookCurrency(data);
+  const numberFormat = workbookNumberFormat(data);
   return (
     <Panel class="stack" role="region" aria-label="Purchase lots">
       {!open.value && (
@@ -81,10 +83,10 @@ export const PurchaseLots = component$<{
                     <td>
                       <strong>{lot.name}</strong>
                     </td>
-                    <td class="numeric">{lot.totalAmount.toFixed(2)}</td>
+                    <td class="numeric">{decimalAmount(lot.totalAmount, numberFormat)}</td>
                     <td class="numeric">{lot.totalUnits}</td>
                     <td class="numeric">{summary.units}</td>
-                    <td class="numeric">{(lot.totalAmount / lot.totalUnits).toFixed(2)}</td>
+                    <td class="numeric">{decimalAmount(lot.totalAmount / lot.totalUnits, numberFormat)}</td>
                     <td>
                       <Badge>
                         {difference === 0

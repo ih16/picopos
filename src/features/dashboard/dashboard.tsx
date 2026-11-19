@@ -1,5 +1,5 @@
 import { money as formatMoney } from '../../shared/lib/format';
-import { workbookCurrency } from '../../domain/settings';
+import { workbookCurrency, workbookNumberFormat } from '../../domain/settings';
 import { component$, useContext, useSignal, useVisibleTask$ } from '@builder.io/qwik';
 import { ScreenNavigation } from '../../app/navigation/screen-navigation';
 import {
@@ -51,7 +51,8 @@ export const Dashboard = component$<{ data: WorkbookData }>(({ data }) => {
   const { navigate$ } = useContext(ScreenNavigation);
   const summary = dashboardSummary(data, periodDays, customRange?.end);
   const currency = workbookCurrency(data);
-  const money = (value: number) => formatMoney(value, currency);
+  const numberFormat = workbookNumberFormat(data);
+  const money = (value: number) => formatMoney(value, currency, numberFormat);
   const max = Math.max(
     1,
     ...summary.trend.map((day) => Math.max(day.value, showCost.value ? (day.cost ?? 0) : 0)),
@@ -190,7 +191,7 @@ export const Dashboard = component$<{ data: WorkbookData }>(({ data }) => {
             },
             {
               label: 'Orders placed',
-              value: summary.orders.toLocaleString(),
+              value: summary.orders.toLocaleString(numberFormat),
               detail: `All states · ${periodLabel}`,
             },
             {
@@ -282,7 +283,7 @@ export const Dashboard = component$<{ data: WorkbookData }>(({ data }) => {
                     class="dashboard-gridline"
                   />
                   <text x="40" y={188 - fraction * 150} text-anchor="end">
-                    {new Intl.NumberFormat(undefined, {
+                    {new Intl.NumberFormat(numberFormat, {
                       notation: 'compact',
                       maximumFractionDigits: 1,
                     }).format(max * fraction)}
@@ -517,7 +518,7 @@ export const Dashboard = component$<{ data: WorkbookData }>(({ data }) => {
                 <div key={key}>
                   <dt>{['Available', 'Reserved', 'Unavailable', 'On hand'][index]}</dt>
                   <dd class={summary.stock[key] < 0 ? 'negative' : undefined}>
-                    {summary.stock[key].toLocaleString()}
+                    {summary.stock[key].toLocaleString(numberFormat)}
                   </dd>
                 </div>
               ))}

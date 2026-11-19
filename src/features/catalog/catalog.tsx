@@ -1,4 +1,5 @@
-import { workbookCurrency } from '../../domain/settings';
+import { decimalAmount } from '../../shared/lib/format';
+import { workbookCurrency, workbookNumberFormat } from '../../domain/settings';
 import { $, component$, useContext, useSignal, useTask$, type QRL } from '@builder.io/qwik';
 import { Collapsible } from '@qwik-ui/headless';
 import { ScreenNavigation } from '../../app/navigation/screen-navigation';
@@ -109,6 +110,7 @@ export const Catalog = component$<Props>(({ data, busy, error, onCommit$ }) => {
     return !query || `${item.name} ${variantText}`.toLowerCase().includes(query);
   });
   const currency = workbookCurrency(data);
+  const numberFormat = workbookNumberFormat(data);
   const editorTitle =
     editor.value === 'category'
       ? categoryId.value
@@ -748,7 +750,7 @@ export const Catalog = component$<Props>(({ data, busy, error, onCommit$ }) => {
                                         </ProductLabel>
                                       </td>
                                       <td class="sku">{row.sku}</td>
-                                      <td class="numeric">{row.price.toFixed(2)}</td>
+                                      <td class="numeric">{decimalAmount(row.price, numberFormat)}</td>
                                       <td>
                                         <Badge status={variantStatus}>{variantStatus}</Badge>
                                       </td>
@@ -788,7 +790,7 @@ export const Catalog = component$<Props>(({ data, busy, error, onCommit$ }) => {
                                       <div>
                                         <dt>Price</dt>
                                         <dd>
-                                          {row.price.toFixed(2)} {currency}
+                                          {decimalAmount(row.price, numberFormat)} {currency}
                                         </dd>
                                       </div>
                                       <div>

@@ -1,5 +1,5 @@
 import { money } from '../../shared/lib/format';
-import { workbookCurrency } from '../../domain/settings';
+import { workbookCurrency, workbookNumberFormat } from '../../domain/settings';
 import { $, component$, useContext, useSignal, useTask$ } from '@builder.io/qwik';
 import { ScreenNavigation } from '../../app/navigation/screen-navigation';
 import { orderPath } from '../../app/navigation/screen-route';
@@ -75,6 +75,7 @@ export const Orders = component$<OrdersProps>(({ data, busy, onCommit$, saveErro
   });
 
   const currency = workbookCurrency(data);
+  const numberFormat = workbookNumberFormat(data);
   const products = new Map(data.Products.map((product) => [product.id, product]));
   const variants = new Map(data.Variants.map((variant) => [variant.id, variant]));
   const itemsByOrder = new Map<string, OrderItem[]>();
@@ -252,8 +253,8 @@ export const Orders = component$<OrdersProps>(({ data, busy, onCommit$, saveErro
                     </td>
                     <td>{item.sku}</td>
                     <td>{item.quantity}</td>
-                    <td>{money(item.unitPrice, currency)}</td>
-                    <td>{money(item.quantity * item.unitPrice, currency)}</td>
+                    <td>{money(item.unitPrice, currency, numberFormat)}</td>
+                    <td>{money(item.quantity * item.unitPrice, currency, numberFormat)}</td>
                   </tr>
                 ))}
                 {!items.length && (
@@ -267,25 +268,27 @@ export const Orders = component$<OrdersProps>(({ data, busy, onCommit$, saveErro
                   <th scope="row" colSpan={4}>
                     Subtotal
                   </th>
-                  <td>{money(subtotal, currency)}</td>
+                  <td>{money(subtotal, currency, numberFormat)}</td>
                 </tr>
                 <tr>
                   <th scope="row" colSpan={4}>
                     Discount
                   </th>
-                  <td>{money(selected.discount === 0 ? 0 : -selected.discount, currency)}</td>
+                  <td>{money(selected.discount === 0 ? 0 : -selected.discount, currency, numberFormat)}</td>
                 </tr>
                 <tr>
                   <th scope="row" colSpan={4}>
                     {selected.shippingOption || 'Shipping'}
                   </th>
-                  <td>{money(selected.shippingCharge, currency)}</td>
+                  <td>{money(selected.shippingCharge, currency, numberFormat)}</td>
                 </tr>
                 <tr>
                   <th scope="row" colSpan={4}>
                     Order total
                   </th>
-                  <td>{money(subtotal - selected.discount + selected.shippingCharge, currency)}</td>
+                  <td>
+                    {money(subtotal - selected.discount + selected.shippingCharge, currency, numberFormat)}
+                  </td>
                 </tr>
               </tfoot>
             </Table>
@@ -302,10 +305,10 @@ export const Orders = component$<OrdersProps>(({ data, busy, onCommit$, saveErro
                         {item.variantName} · {item.sku}
                       </span>
                     </ProductLabel>
-                    <strong>{money(item.quantity * item.unitPrice, currency)}</strong>
+                    <strong>{money(item.quantity * item.unitPrice, currency, numberFormat)}</strong>
                   </div>
                   <p class="muted">
-                    {quantityLabel(item.quantity)} × {money(item.unitPrice, currency)}
+                    {quantityLabel(item.quantity)} × {money(item.unitPrice, currency, numberFormat)}
                   </p>
                 </article>
               ))}
@@ -313,20 +316,22 @@ export const Orders = component$<OrdersProps>(({ data, busy, onCommit$, saveErro
               <dl class="order-totals">
                 <div>
                   <dt>Subtotal</dt>
-                  <dd>{money(subtotal, currency)}</dd>
+                  <dd>{money(subtotal, currency, numberFormat)}</dd>
                 </div>
                 <div>
                   <dt>Discount</dt>
-                  <dd>{money(selected.discount === 0 ? 0 : -selected.discount, currency)}</dd>
+                  <dd>{money(selected.discount === 0 ? 0 : -selected.discount, currency, numberFormat)}</dd>
                 </div>
                 <div>
                   <dt>{selected.shippingOption || 'Shipping'}</dt>
-                  <dd>{money(selected.shippingCharge, currency)}</dd>
+                  <dd>{money(selected.shippingCharge, currency, numberFormat)}</dd>
                 </div>
                 <div>
                   <dt>Order total</dt>
                   <dd>
-                    <strong>{money(subtotal - selected.discount + selected.shippingCharge, currency)}</strong>
+                    <strong>
+                      {money(subtotal - selected.discount + selected.shippingCharge, currency, numberFormat)}
+                    </strong>
                   </dd>
                 </div>
               </dl>
@@ -560,7 +565,11 @@ export const Orders = component$<OrdersProps>(({ data, busy, onCommit$, saveErro
       return {
         order,
         returnStatus: returnLabel(orderItems, returnsByOrder.get(order.id) ?? []),
-        total: money(orderSubtotal(orderItems) - order.discount + order.shippingCharge, currency),
+        total: money(
+          orderSubtotal(orderItems) - order.discount + order.shippingCharge,
+          currency,
+          numberFormat,
+        ),
       };
     });
 

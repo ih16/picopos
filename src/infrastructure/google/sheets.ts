@@ -9,6 +9,7 @@ import type { Workbook } from '../../domain/workbook';
 import {
   applyChanges,
   HEADERS,
+  emptyWorkbook,
   ORDER_STATUSES,
   PAYMENT_STATUSES,
   RETURN_CONDITIONS,
@@ -514,8 +515,36 @@ function initializeTab(tab: string, sheetId: number, existing?: Sheet): SheetReq
   return requests;
 }
 
-export async function initializeWorkbook(token: string, spreadsheetId: string): Promise<Workbook> {
+export async function initializeWorkbook(
+  token: string,
+  spreadsheetId: string,
+  initialSettings?: RowChange[],
+): Promise<Workbook | undefined> {
   const document = await readDocument(token, spreadsheetId, true);
+  const settingsRows = document.rows.get('Settings') ?? [];
+  // A header-only Settings tab is safe to initialize. Keep the existing checks
+  // for occupied tabs and unsupported schema versions before making any writes.
+  const needsSetup = isEmpty(settingsRows.slice(1));
+  const preferences = initialSettings?.filter(
+    ({ tab, row }) => tab === 'Settings' && ['currency', 'numberFormat', 'shippingOptions'].includes(row.id),
+  );
+  if (needsSetup && preferences) validateChanges(emptyWorkbook(), preferences);
+  if (needsSetup && document.sheets.has('Settings')) {
+    const columns = document.sheets.get('Settings')?.gridProperties?.columnCount ?? HEADERS.Settings.length;
+    const lastColumn = columnName(Math.min(columns, HEADERS.Settings.length) - 1);
+    const result = await request<{ valueRanges?: { values?: GridRow[] }[] }>(
+      token,
+      spreadsheetId,
+      '/values:batchGet',
+      new URLSearchParams({ ranges: a1('Settings', `A:${lastColumn}`), valueRenderOption: 'FORMULA' }),
+    );
+    const cells = result.valueRanges?.[0]?.values ?? [];
+    if (!isEmpty(cells.slice(isEmpty(settingsRows) ? 0 : 1))) {
+      throw new SheetsError(
+        'Settings contains existing data. Use a blank sheet or a supported picopos workbook.',
+      );
+    }
+  }
   const requests: SheetRequest[] = [];
   const existingIds = new Set(Array.from(document.sheets.values(), (sheet) => sheet.sheetId));
   let nextId = 1;
@@ -526,10 +555,10 @@ export async function initializeWorkbook(token: string, spreadsheetId: string): 
       checkHeader(tab, rows);
       if (tab === 'Products') requests.push(...(await addProductImageColumn(token, document)));
       const settings = tab === 'Settings' ? readRows(tab, rows) : undefined;
-      if (settings && settings.find((row) => row.id === 'schemaVersion')?.value !== '1') {
+      if (settings && !needsSetup && settings.find((row) => row.id === 'schemaVersion')?.value !== '1') {
         throw new SheetsError('This workbook has an unsupported schema version in Settings.');
       }
-      continue;
+      if (tab !== 'Settings' || !needsSetup) continue;
     }
     while (existingIds.has(nextId)) nextId++;
     const sheetId = existing?.sheetId ?? nextId++;
@@ -542,11 +571,14 @@ export async function initializeWorkbook(token: string, spreadsheetId: string): 
           0,
           ['schemaVersion', '1'],
           ['businessName', document.title],
-          ['currency', 'USD'],
+          ...(preferences ?? []).flatMap((change) =>
+            change.tab === 'Settings' ? [[change.row.id, change.row.value]] : [],
+          ),
         ),
       );
     }
   }
+  if (needsSetup && !initialSettings) return undefined;
   if (requests.length) await request(token, spreadsheetId, ':batchUpdate', undefined, { requests });
   const updated = requests.length ? await readDocument(token, spreadsheetId) : document;
   if (await upgradeWorkbook(token, updated)) return loadWorkbook(token, spreadsheetId);

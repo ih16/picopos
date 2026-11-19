@@ -224,3 +224,32 @@ test('migration never overwrites a formula in the shipping option column', async
   );
   assert.equal(writes.length, 0);
 });
+
+test('workbook setup waits for confirmation, writes preferences, and preserves recognized settings', async () => {
+  const { load, writes, rows } = runtime();
+  const sheets = load('sheets');
+  rows.get('Settings')!.splice(1);
+  assert.equal(await sheets.initializeWorkbook('token', 'book'), undefined);
+  assert.equal(writes.length, 0);
+
+  const shipping = JSON.stringify([{ id: 'pickup', name: 'Pickup', rate: 0 }]);
+  await assert.rejects(
+    sheets.initializeWorkbook('token', 'book', [
+      { tab: 'Settings', row: { id: 'shippingOptions', value: 'invalid' } },
+    ]),
+    /valid list/,
+  );
+  assert.equal(writes.length, 0);
+  await sheets.initializeWorkbook('token', 'book', [
+    { tab: 'Settings', row: { id: 'currency', value: 'BDT' } },
+    { tab: 'Settings', row: { id: 'shippingOptions', value: shipping } },
+  ]);
+  assert.equal(rows.get('Settings')!.find(([id]) => id === 'currency')?.[1], 'BDT');
+  assert.equal(rows.get('Settings')!.find(([id]) => id === 'shippingOptions')?.[1], shipping);
+  writes.length = 0;
+  await sheets.initializeWorkbook('token', 'book', [
+    { tab: 'Settings', row: { id: 'currency', value: 'USD' } },
+  ]);
+  assert.equal(writes.length, 0);
+  assert.equal(rows.get('Settings')!.find(([id]) => id === 'currency')?.[1], 'BDT');
+});

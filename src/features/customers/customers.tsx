@@ -1,4 +1,5 @@
-import { workbookCurrency } from '../../domain/settings';
+import { decimalAmount } from '../../shared/lib/format';
+import { workbookCurrency, workbookNumberFormat } from '../../domain/settings';
 import { component$, useComputed$, useContext, useSignal, type QRL } from '@builder.io/qwik';
 import { ScreenNavigation } from '../../app/navigation/screen-navigation';
 import { customerPath } from '../../app/navigation/screen-route';
@@ -170,6 +171,7 @@ export const Customers = component$<Props>(({ data, busy, error, onCommit$ }) =>
       (!query || `${customer.name} ${customer.contact} ${customer.address}`.toLowerCase().includes(query)),
   );
   const currency = workbookCurrency(data);
+  const numberFormat = workbookNumberFormat(data);
 
   return (
     <section class={['stack customers-page', selected && 'customer-details-page']}>
@@ -254,13 +256,14 @@ export const Customers = component$<Props>(({ data, busy, error, onCommit$ }) =>
                           <Badge status={order.paymentStatus}>{order.paymentStatus}</Badge>
                         </td>
                         <td class="numeric">
-                          {(
+                          {decimalAmount(
                             data['Order Items']
                               .filter((item) => item.orderId === order.id)
                               .reduce((sum, item) => sum + item.quantity * item.unitPrice, 0) -
-                            order.discount +
-                            order.shippingCharge
-                          ).toFixed(2)}
+                              order.discount +
+                              order.shippingCharge,
+                            numberFormat,
+                          )}
                         </td>
                       </tr>
                     ))}

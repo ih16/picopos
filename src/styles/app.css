@@ -2239,7 +2239,7 @@ body:has(.workspace) {
   font-size: 1.35rem;
 }
 .settings-grid,
-.settings-form-grid {
+.settings-currency-fields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 24px;
@@ -2252,7 +2252,8 @@ body:has(.workspace) {
   padding: 24px;
   min-width: 0;
 }
-.settings-business {
+.settings-business,
+.settings-connection {
   grid-column: 1 / -1;
 }
 .business-settings-form {
@@ -2272,20 +2273,17 @@ body:has(.workspace) {
   font-size: 0.875rem;
   line-height: 1.5;
 }
-.settings-form-grid {
-  column-gap: 48px;
+.settings-shipping-options {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  max-block-size: min(220px, 30dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px 6px;
+  margin: -4px -6px;
 }
-.settings-form-grid > :first-child {
-  position: relative;
-}
-.settings-form-grid > :first-child::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  right: -24px;
-  border-right: 1px solid var(--line);
-}
+
 .settings-shipping-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(90px, 0.5fr) auto;
@@ -2348,19 +2346,12 @@ body:has(.workspace) {
 }
 @media (max-width: 760px) {
   .settings-grid,
-  .settings-form-grid {
+  .settings-currency-fields {
     grid-template-columns: 1fr;
     gap: 20px;
   }
   .settings-grid > .panel {
     padding: 18px;
-  }
-  .settings-form-grid > :first-child {
-    padding: 0 0 20px;
-    border-bottom: 1px solid var(--line);
-  }
-  .settings-form-grid > :first-child::after {
-    display: none;
   }
   .settings-shipping-row {
     grid-template-columns: minmax(0, 1fr) 100px;
@@ -3445,4 +3436,92 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
   .help-document-body {
     padding-top: 14px;
   }
+}
+
+.workbook-options {
+  display: grid;
+  gap: 8px;
+}
+
+.workbook-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-input);
+  background: var(--surface-raised);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.workbook-option > .icon {
+  flex: none;
+}
+
+.workbook-option > span {
+  flex: 1;
+  min-width: 0;
+}
+
+.workbook-option small {
+  display: block;
+  color: var(--ink-muted);
+}
+
+.workbook-option:not(:disabled):hover {
+  background: var(--surface-soft);
+}
+
+.workbook-option:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+
+.workbook-create > summary {
+  list-style: none;
+}
+
+.workbook-create > summary::-webkit-details-marker {
+  display: none;
+}
+
+.workbook-create[open] > summary > .icon {
+  transform: rotate(45deg);
+}
+
+.workbook-create-fields {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  padding: 12px 14px;
+}
+
+.workbook-create-fields > label {
+  width: 100%;
+}
+
+.workbook-filename,
+.workbook-picker-hint,
+.workbook-demo p {
+  font-size: 0.875rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.workbook-demo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.workbook-setup-modal {
+  width: min(780px, calc(100vw - 32px));
 }

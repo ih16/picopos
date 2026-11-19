@@ -1,6 +1,6 @@
-import { component$, useComputed$, useSignal, useTask$ } from '@builder.io/qwik';
+import { $, component$, useComputed$, useSignal, useTask$ } from '@builder.io/qwik';
 import { demoWorkbook } from '../domain/demo';
-import { customerDirectory, type Workbook } from '../domain/workbook';
+import { customerDirectory, emptyWorkbook, type Workbook } from '../domain/workbook';
 import { Connection, ReconnectNotice } from '../features/auth/connection';
 import { Catalog } from '../features/catalog/catalog';
 import { Customers } from '../features/customers/customers';
@@ -52,6 +52,7 @@ export default component$(() => {
     connectionBusy,
     issues,
     connect,
+    setupSelection,
     openDemo,
     disconnect,
     discardChange,
@@ -62,13 +63,23 @@ export default component$(() => {
   } = useWorkbook(error, navigation);
   const loginOpen = useSignal(false);
   const pickerActive = useSignal(false);
+  const setupData = useSignal(emptyWorkbook());
+  const cancelSetup = $(() => {
+    if (connectionBusy.value) {
+      loginOpen.value = true;
+      return;
+    }
+    setupSelection.value = undefined;
+    authError.value = '';
+  });
   const preview = useSignal<Workbook>({ id: 'preview', title: 'Fieldwork Supply', data: demoWorkbook() });
   useTask$(({ track }) => {
     const checking = track(() => checkingSavedSession.value);
     const selection = track(() => saved.value);
     const current = track(() => workbook.value);
     const choosing = track(() => pickerActive.value);
-    loginOpen.value = !checking && !selection && !current && !choosing;
+    const setup = track(() => setupSelection.value);
+    loginOpen.value = !choosing && (Boolean(setup) || (!checking && !selection && !current));
   });
   const customerLabels = useComputed$(() => {
     const labels = new Map<string, string>();
@@ -98,7 +109,7 @@ export default component$(() => {
       offline={!online.value}
       error={needsReconnect.value && local.value ? undefined : authError.value}
       onSelect$={connect}
-      onDemo$={openDemo}
+      onDemo$={demo.value ? undefined : openDemo}
     />
   );
 
@@ -106,22 +117,43 @@ export default component$(() => {
     <div class="app-shell">
       <Modal
         open={loginOpen}
-        title="Welcome to picopos"
-        class="login-modal"
+        title={setupSelection.value ? 'Set up your workbook' : 'Welcome to picopos'}
+        class={setupSelection.value ? 'login-modal workbook-setup-modal' : 'login-modal'}
         onClose$={async () => {
-          if (!pickerActive.value && !checkingSavedSession.value && !saved.value && !workbook.value)
-            await openDemo();
+          if (pickerActive.value) return;
+          if (setupSelection.value) await cancelSetup();
+          else if (!checkingSavedSession.value && !saved.value && !workbook.value) await openDemo();
         }}
       >
-        <div class="stack">
-          <div class="login-intro">
-            <h1>Run your shop from a spreadsheet.</h1>
+        {setupSelection.value ? (
+          <div class="stack">
             <p class="muted">
-              Manage products, customers, orders, and stock in a Google workbook your team owns.
+              Choose the starting settings for <strong>{setupSelection.value.name}</strong>. You can change
+              them later in Settings.
             </p>
+            <BusinessSettings
+              data={setupData.value}
+              busy={connectionBusy.value || !online.value}
+              error={!online.value ? 'Go online to finish workbook setup.' : authError.value}
+              setup={{
+                interval: syncInterval.value,
+                onFinish$: $(async (settings, interval) => {
+                  const selection = setupSelection.value;
+                  if (selection) await connect(selection, { settings, interval });
+                }),
+                onCancel$: cancelSetup,
+              }}
+            />
           </div>
-          {connection}
-        </div>
+        ) : (
+          <div class="stack">
+            <div class="login-intro">
+              <h1>Run your shop from a spreadsheet</h1>
+              <p class="muted">Manage inventory and orders in a Google workbook your team owns.</p>
+            </div>
+            {connection}
+          </div>
+        )}
       </Modal>
       <ReconnectNotice />
       {!workbook.value && !fresh && (

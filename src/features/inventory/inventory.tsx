@@ -1,3 +1,4 @@
+import { workbookNumberFormat } from '../../domain/settings';
 import { $, component$, useComputed$, useContext, useSignal, useTask$, type QRL } from '@builder.io/qwik';
 import { ScreenNavigation } from '../../app/navigation/screen-navigation';
 import {
@@ -218,7 +219,7 @@ export const Inventory = component$<{
             <div data-status={label} key={key}>
               <dt class="metric-label">{label}</dt>
               <dd class={['metric-value', totals.value[key] < 0 && 'negative']}>
-                {totals.value[key].toLocaleString('en-US')}
+                {totals.value[key].toLocaleString(workbookNumberFormat(data))}
               </dd>
             </div>
           ))}

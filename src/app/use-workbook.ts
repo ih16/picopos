@@ -67,6 +67,7 @@ function syncLock(id: string) {
 export function useWorkbook(error: Signal<string>, navigation: ReturnType<typeof useWorkspaceNavigation>) {
   const { reset, route, openPages } = navigation;
   const saved = useSignal<SpreadsheetSelection>();
+  const setupSelection = useSignal<SpreadsheetSelection>();
   const local = useSignal<LocalWorkbook>();
   const demo = useSignal<Workbook>();
   const workbook = useComputed$(() => demo.value ?? (local.value && projectLocalWorkbook(local.value)));
@@ -335,51 +336,63 @@ export function useWorkbook(error: Signal<string>, navigation: ReturnType<typeof
     storeSyncTiming(SYNC_INTERVAL_KEY, syncInterval.value);
   });
 
-  const connect = $(async (selection: SpreadsheetSelection) => {
-    if (busy.value || syncing.value) return;
-    const token = getAccessToken();
-    if (!token) {
-      expired.value = true;
-      return;
-    }
-    busy.value = true;
-    authError.value = '';
-    try {
-      await getWorkbookLocks().request(syncLock(selection.id), async () => {
-        const selected = await initializeWorkbook(token, selection.id);
-        const connection = { id: selected.id, name: selected.title };
-        const state = await updateLocalWorkbook(selected.id, (previous) => ({
-          ...previous,
-          version: 1,
-          base: selected,
-          pending: previous?.pending ?? [],
-          lastSyncedAt: Date.now(),
-        }));
-        await rememberAccessToken(selected.id);
-        if ((saved.value && saved.value.id !== selected.id) || demo.value) {
-          await reset();
-        }
-        saved.value = connection;
-        lastAttempt.value = state.lastSyncedAt ?? 0;
-        demo.value = undefined;
-        try {
-          sessionStorage.removeItem(DEMO_SESSION);
-        } catch {
-          /* Storage may be unavailable. */
-        }
-        saveSelection(connection);
-        await showLocal(state);
-        expired.value = false;
-        syncError.value = '';
-        error.value = '';
-        void navigator.storage.persist?.().catch(() => {});
-      });
-    } catch (cause) {
-      await reportSyncFailure(cause, true);
-    } finally {
-      busy.value = false;
-    }
-  });
+  const connect = $(
+    async (selection: SpreadsheetSelection, setup?: { settings: RowChange[]; interval: string }) => {
+      if (busy.value || syncing.value) return;
+      const token = getAccessToken();
+      if (!token) {
+        if (setup)
+          authError.value = 'Google authorization expired. Cancel setup and select the workbook again.';
+        else expired.value = true;
+        return;
+      }
+      busy.value = true;
+      authError.value = '';
+      try {
+        await getWorkbookLocks().request(syncLock(selection.id), async () => {
+          const selected = await initializeWorkbook(token, selection.id, setup?.settings);
+          if (!selected) {
+            setupSelection.value = selection;
+            return;
+          }
+          const connection = { id: selected.id, name: selected.title };
+          const state = await updateLocalWorkbook(selected.id, (previous) => ({
+            ...previous,
+            version: 1,
+            base: selected,
+            pending: previous?.pending ?? [],
+            lastSyncedAt: Date.now(),
+          }));
+          await rememberAccessToken(selected.id);
+          if ((saved.value && saved.value.id !== selected.id) || demo.value) {
+            await reset();
+          }
+          saved.value = connection;
+          lastAttempt.value = state.lastSyncedAt ?? 0;
+          demo.value = undefined;
+          try {
+            sessionStorage.removeItem(DEMO_SESSION);
+          } catch {
+            /* Storage may be unavailable. */
+          }
+          saveSelection(connection);
+          await showLocal(state);
+          expired.value = false;
+          syncError.value = '';
+          error.value = '';
+          if (setup) await changeSyncInterval(setup.interval);
+          setupSelection.value = undefined;
+          void navigator.storage.persist?.().catch(() => {});
+        });
+      } catch (cause) {
+        if (setup)
+          authError.value = cause instanceof Error ? cause.message : 'Could not save workbook setup.';
+        else await reportSyncFailure(cause, true);
+      } finally {
+        busy.value = false;
+      }
+    },
+  );
 
   const openDemo = $(() => {
     try {
@@ -488,6 +501,7 @@ export function useWorkbook(error: Signal<string>, navigation: ReturnType<typeof
     connectionBusy,
     issues,
     connect,
+    setupSelection,
     openDemo,
     disconnect,
     discardChange,
