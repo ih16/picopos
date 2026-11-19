@@ -8,4 +8,4 @@ export const ReconnectContext = createContextId<{
   busy: Signal<boolean>;
   error: Signal<string>;
   onReconnect$: QRL<(selection: SpreadsheetSelection) => void | Promise<void>>;
-}>('piecom.google-reconnect');
+}>('picopos.google-reconnect');

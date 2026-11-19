@@ -28,7 +28,7 @@ type MultiSelectProps = Omit<SelectFieldProps, 'value' | 'onChange$'> & {
   onChange$: QRL<(value: string[]) => void | Promise<void>>;
 };
 
-const emptyOption = '__piecom_empty_filter__';
+const emptyOption = '__picopos_empty_filter__';
 
 const SearchableSelect = component$<
   Omit<SelectFieldProps, 'value' | 'onChange$'> & {

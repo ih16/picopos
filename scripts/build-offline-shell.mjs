@@ -26,7 +26,10 @@ for (const path of assets) {
 }
 
 const version = hash.digest('hex').slice(0, 16);
-await writeFile(
-  join(dist, 'piecom-service-worker.js'),
-  `${worker}\ninstallOfflineShell(${JSON.stringify(version)}, ${JSON.stringify(assets)});\n`,
-);
+// Older installations update from their originally registered URL.
+for (const name of ['picopos-service-worker.js', 'piecom-service-worker.js']) {
+  await writeFile(
+    join(dist, name),
+    `${worker}\ninstallOfflineShell(${JSON.stringify(version)}, ${JSON.stringify(assets)});\n`,
+  );
+}

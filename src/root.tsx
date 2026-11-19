@@ -9,7 +9,7 @@ export default component$(() => {
       cleanup(watchActionBarClearance());
       if (import.meta.env.PROD && window.isSecureContext && 'serviceWorker' in navigator) {
         void navigator.serviceWorker
-          .register('/piecom-service-worker.js', { updateViaCache: 'none' })
+          .register('/picopos-service-worker.js', { updateViaCache: 'none' })
           .catch(() => {
             // Sheets access can still work if the browser prevents offline shell caching.
           });

@@ -1,5 +1,5 @@
 function installOfflineShell(version, assets) {
-  const prefix = 'piecom-shell-';
+  const prefix = 'picopos-shell-';
   const cacheName = `${prefix}${version}`;
   const assetPaths = new Set(assets);
 
@@ -15,7 +15,7 @@ function installOfflineShell(version, assets) {
     event.waitUntil(
       (async () => {
         const outdated = (await caches.keys()).filter(
-          (name) => name.startsWith(prefix) && name !== cacheName,
+          (name) => (name.startsWith(prefix) || name.startsWith('piecom-shell-')) && name !== cacheName,
         );
         await Promise.all(outdated.map((name) => caches.delete(name)));
         await self.clients.claim();

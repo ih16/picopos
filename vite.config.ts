@@ -10,7 +10,9 @@ export default defineConfig({
       name: 'retire-offline-shell-in-dev',
       configureServer(server) {
         // A production preview can leave a cache-first worker on this same origin.
-        server.middlewares.use('/piecom-service-worker.js', (_request, response) => {
+        server.middlewares.use((request, response, next) => {
+          if (!['/piecom-service-worker.js', '/picopos-service-worker.js'].includes(request.url ?? ''))
+            return next();
           response.setHeader('Content-Type', 'application/javascript');
           response.setHeader('Cache-Control', 'no-store');
           response.end(`

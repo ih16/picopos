@@ -4,5 +4,5 @@ import baseConfig from '../../vite.config';
 
 export default extendConfig(baseConfig, () => ({
   build: { ssr: true, rollupOptions: { input: ['@qwik-city-plan'] } },
-  plugins: [staticAdapter({ origin: process.env.PUBLIC_ORIGIN || 'http://localhost:4173' })],
+  plugins: [staticAdapter({ origin: process.env.PUBLIC_ORIGIN || 'https://www.picopos.app' })],
 }));

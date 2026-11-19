@@ -44,7 +44,7 @@ References: [Qwik tasks and lifecycle](https://qwik.dev/docs/core/tasks/), [Qwik
 
 `npm run build` builds the browser bundle, runs the static adapter, adds a content security policy to the generated HTML, and generates the offline worker with `scripts/build-offline-shell.mjs`. The worker caches a content-versioned shell and bundled assets, not Google API responses. `scripts/offline-worker.js` owns its cache behavior. Development serves a worker that unregisters itself to retire a prior preview on the same origin.
 
-Edit `src/`, `scripts/`, and configuration sources; `dist/` and `server/` are generated output. `output/` is excluded from formatting and is not an application source directory. Public Google identifiers are compiled from `VITE_*` values; `PUBLIC_ORIGIN` configures the static adapter and defaults to `http://localhost:4173`.
+Edit `src/`, `scripts/`, and configuration sources; `dist/` and `server/` are generated output. `output/` is excluded from formatting and is not an application source directory. Public Google identifiers are compiled from `VITE_*` values; `PUBLIC_ORIGIN` configures the static adapter and defaults to `https://www.picopos.app`.
 
 ## Verification commands
 

@@ -294,6 +294,11 @@ export const Connection = component$<ConnectionProps>((props) => {
           </Button>
         </div>
       )}
+      {!reconnectOnly && (
+        <p class="muted">
+          <a href="/privacy.html">Privacy policy</a> · <a href="/terms.html">Terms of service</a>
+        </p>
+      )}
     </Panel>
   );
 });

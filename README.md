@@ -4,6 +4,7 @@
   <p><strong>Your shop. Your spreadsheet.</strong></p>
   <p>Catalog, orders, and inventory in one browser app, backed by a Google Sheet you own.</p>
   <p>
+    <a href="https://www.picopos.app/">Open picopos</a> ·
     <a href="#quick-start">Quick start</a> ·
     <a href="#connect-google-sheets">Google Sheets setup</a> ·
     <a href="#documentation">Documentation</a> ·
@@ -50,8 +51,8 @@ Make shortcuts are also available: `make install`, `make dev`, and `make help`. 
 ## Connect Google Sheets
 
 1. **Configure a Google Cloud project.** Enable the Google Sheets API and Google Picker API.
-2. **Create an OAuth client.** Configure the consent screen and create a **Web application** client. Add the exact JavaScript origins you will use, such as `http://localhost:8899` and your production HTTPS origin. Add test users while the OAuth app is in testing mode.
-3. **Create a Picker API key.** Use the same Cloud project. Restrict the key to the Google Picker API and configure website restrictions for your app and `https://docs.google.com/*`.
+2. **Create an OAuth client.** Configure the consent screen and create a **Web application** client. Add the exact JavaScript origins you will use, such as `http://localhost:8899` and `https://www.picopos.app`. For the public deployment, use the app name `picopos`, authorize `picopos.app` under Branding, and publish the External audience to production.
+3. **Create a Picker API key.** Use the same Cloud project. Restrict the key to the Google Picker API and configure website restrictions for `https://www.picopos.app/*`, your development origins, and `https://docs.google.com/*`.
 4. **Set the public browser configuration.** Copy `.env.example` to `.env.local` if you do not already have local configuration, then fill in:
 
    ```dotenv
@@ -148,7 +149,7 @@ Screens use hash routes such as `#/orders`, `#/catalog`, and `#/inventory`. Dire
 Build for your deployment origin, then publish **`dist/`** to a static HTTPS host at the origin root:
 
 ```sh
-PUBLIC_ORIGIN=https://your-domain.example npm run verify
+PUBLIC_ORIGIN=https://www.picopos.app npm run verify
 npm run preview
 ```
 

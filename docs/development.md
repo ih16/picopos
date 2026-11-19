@@ -19,12 +19,12 @@ For Google-connected development, create `.env.local` from `.env.example` if it 
 
 ## Environment variables
 
-| Variable                     | Purpose                                                                  | Required for                             |
-| ---------------------------- | ------------------------------------------------------------------------ | ---------------------------------------- |
-| `VITE_GOOGLE_CLIENT_ID`      | Google OAuth Web application client ID                                   | Google sign-in                           |
-| `VITE_GOOGLE_API_KEY`        | Restricted Google Picker API key                                         | Workbook picker                          |
-| `VITE_GOOGLE_PROJECT_NUMBER` | Numeric Google Cloud project number, not project ID                      | Workbook picker                          |
-| `PUBLIC_ORIGIN`              | Origin passed to the static adapter; defaults to `http://localhost:4173` | Builds for a different deployment origin |
+| Variable                     | Purpose                                                                    | Required for                             |
+| ---------------------------- | -------------------------------------------------------------------------- | ---------------------------------------- |
+| `VITE_GOOGLE_CLIENT_ID`      | Google OAuth Web application client ID                                     | Google sign-in                           |
+| `VITE_GOOGLE_API_KEY`        | Restricted Google Picker API key                                           | Workbook picker                          |
+| `VITE_GOOGLE_PROJECT_NUMBER` | Numeric Google Cloud project number, not project ID                        | Workbook picker                          |
+| `PUBLIC_ORIGIN`              | Origin passed to the static adapter; defaults to `https://www.picopos.app` | Builds for a different deployment origin |
 
 The `VITE_*` values are read in `src/infrastructure/google/google.ts` and bundled into frontend assets. They are public identifiers, not a place for client secrets or service-account credentials. Apply the Google restrictions described in setup. `.env.local` and other private env files are ignored by Git; `.env.example` is the tracked template.
 
@@ -33,7 +33,7 @@ Vite loads `.env` and `.env.local`, plus files for the selected mode. The develo
 `PUBLIC_ORIGIN` is read directly from `process.env` in `adapters/static/vite.config.ts`. Supply it through the shell or CI environment; placing it only in a Vite env file does not configure the current adapter:
 
 ```sh
-PUBLIC_ORIGIN=https://your-domain.example make build
+PUBLIC_ORIGIN=https://www.picopos.app make build
 ```
 
 Restart development after changing environment configuration. Rebuild to update frontend values in `dist/`; setting new variables while serving an existing build does not rewrite that build. `PUBLIC_ORIGIN` does not change Vite's listening port or add an authorized Google origin.
