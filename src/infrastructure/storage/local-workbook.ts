@@ -1,3 +1,4 @@
+import { decryptWorkbook, encryptWorkbook, workbookEncryptionKey } from './workbook-encryption';
 import type { LocalWorkbook, PendingChange } from '../../domain/outbox';
 import { HEADERS, type RowChange, type TableName } from '../../domain/workbook';
 
@@ -86,15 +87,29 @@ async function readStoredWorkbook(id: string): Promise<LocalWorkbook | undefined
   }
   const contents = await (await handle.getFile()).text();
   // The first write can leave an empty file if interrupted before close().
-  return contents ? decodeLocalWorkbook(contents, id) : undefined;
+  if (!contents) return undefined;
+  const envelope = JSON.parse(contents) as { encrypted?: unknown } | null;
+  if (envelope && Object.hasOwn(envelope, 'encrypted')) {
+    try {
+      return decodeLocalWorkbook(await decryptWorkbook(contents, id, await workbookEncryptionKey()), id);
+    } catch {
+      throw new Error(
+        'The encrypted workbook could not be opened. Keep this browser’s site data intact to preserve unsynced changes.',
+      );
+    }
+  }
+  // Validate first; migrate atomically under the workbook lock without losing the outbox.
+  const legacy = decodeLocalWorkbook(contents, id);
+  await writeStoredWorkbook(id, legacy);
+  return legacy;
 }
 
 export async function readLocalWorkbook(id: string): Promise<LocalWorkbook | undefined> {
-  return getWorkbookLocks().request(lockName(id), { mode: 'shared' }, () => readStoredWorkbook(id));
+  return getWorkbookLocks().request(lockName(id), () => readStoredWorkbook(id));
 }
 
 async function writeStoredWorkbook(id: string, state: LocalWorkbook): Promise<void> {
-  const contents = JSON.stringify(state);
+  const contents = await encryptWorkbook(JSON.stringify(state), id, await workbookEncryptionKey());
   let writable: FileSystemWritableFileStream | undefined;
   try {
     const directory = await workbookDirectory(true);

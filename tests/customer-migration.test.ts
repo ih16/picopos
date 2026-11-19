@@ -73,7 +73,10 @@ function runtime(
     });
     runInNewContext(outputText, {
       exports,
-      require: (path: string) => load(resolve(dirname(name), path.endsWith('.ts') ? path : `${path}.ts`)),
+      require: (path: string) =>
+        path.endsWith('workbook-encryption')
+          ? { workbookEncryptionKey: async () => ({}), encryptWorkbook: async (contents: string) => contents }
+          : load(resolve(dirname(name), path.endsWith('.ts') ? path : `${path}.ts`)),
       URL,
       URLSearchParams,
       TextEncoder,
@@ -82,11 +85,20 @@ function runtime(
       setTimeout,
       clearTimeout,
       navigator: {
-        locks: { request: (_name: string, _options: unknown, callback: () => unknown) => callback() },
+        locks: { request: (_name: string, callback: () => unknown) => callback() },
         storage: {
           getDirectory: async () => ({
             getDirectoryHandle: async () => ({
-              getFileHandle: async () => ({ getFile: async () => ({ text: async () => stored }) }),
+              getFileHandle: async () => ({
+                getFile: async () => ({ text: async () => stored }),
+                createWritable: async () => ({
+                  write: async (contents: string) => {
+                    stored = contents;
+                  },
+                  close: async () => {},
+                  abort: async () => {},
+                }),
+              }),
             }),
           }),
         },

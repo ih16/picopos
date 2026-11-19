@@ -359,6 +359,13 @@ export default component$(() => {
                           )}
                           <div class="panel settings-connection stack">
                             {connection}
+                            {!demo.value && (
+                              <p class="muted">
+                                Offline data stays available in this browser profile. On a shared device, sync
+                                your changes and disconnect when finished. Disconnect removes this workbook’s
+                                local copy; unsynced changes must be synced first.
+                              </p>
+                            )}
                             <ActionBar label="Workbook actions" class="settings-workbook-actions">
                               {!demo.value && (
                                 <a

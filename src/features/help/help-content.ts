@@ -320,7 +320,7 @@ const topics: HelpTopic[] = [
         title: 'Reconnect, switch accounts, or disconnect',
         paragraphs: [
           'If Google access expires, choose Reconnect to resume sync. Use Use another Google account when you need a different account with access to the workbook.',
-          'Review pending changes before changing workbooks or disconnecting. Unsynced work belongs to the current browser profile and has not yet reached Google Sheets. The demo has its own Leave demo action.',
+          'Review pending changes before changing workbooks or disconnecting. Unsynced work belongs to the current browser profile and has not yet reached Google Sheets. Offline copies are encrypted on this device, but anyone using the unlocked browser profile can still open them. On a shared device, sync and disconnect when finished to remove the current workbook’s local copy. Do not clear site data while changes are pending. The demo has its own Leave demo action.',
         ],
       },
     ],
