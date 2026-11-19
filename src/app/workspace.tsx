@@ -1,6 +1,6 @@
 import { $, component$, useComputed$, useSignal, useTask$ } from '@builder.io/qwik';
-import { demoWorkbook } from '../domain/demo';
-import { customerDirectory, emptyWorkbook, type Workbook } from '../domain/workbook';
+import { SYNC_INTERVALS } from '../domain/sync-timing';
+import { customerDirectory, emptyWorkbook } from '../domain/workbook';
 import { Connection, ReconnectNotice } from '../features/auth/connection';
 import { Catalog } from '../features/catalog/catalog';
 import { Customers } from '../features/customers/customers';
@@ -16,9 +16,9 @@ import { WorkspacePage } from './navigation/workspace-page';
 
 import { parseScreenRoute, screenTabKey } from './navigation/screen-route';
 
-import { SYNC_INTERVALS } from '../features/sync/sync-timing';
 import { useWorkspaceNavigation } from './navigation/use-workspace-navigation';
 import { useWorkbook } from './use-workbook';
+import { WorkspacePreview } from './workspace-preview';
 
 const PAGES = ['Dashboard', 'Orders', 'Catalog', 'Customers', 'Inventory'] as const;
 
@@ -72,7 +72,6 @@ export default component$(() => {
     setupSelection.value = undefined;
     authError.value = '';
   });
-  const preview = useSignal<Workbook>({ id: 'preview', title: 'Fieldwork Supply', data: demoWorkbook() });
   useTask$(({ track }) => {
     const checking = track(() => checkingSavedSession.value);
     const selection = track(() => saved.value);
@@ -83,17 +82,19 @@ export default component$(() => {
   });
   const customerLabels = useComputed$(() => {
     const labels = new Map<string, string>();
-    for (const entry of customerDirectory((workbook.value ?? preview.value).data)) {
+    const data = workbook.value?.data;
+    if (!data) return labels;
+    for (const entry of customerDirectory(data)) {
       if (!labels.has(entry.key)) labels.set(entry.key, entry.customer.name);
     }
     return labels;
   });
-  const current = workbook.value ?? preview.value;
+  const current = workbook.value;
   const tabLabel = (key: string) => {
     const screen = parseScreenRoute(tabPaths[key]);
     if (screen.creating) return 'New order';
     if (screen.orderId)
-      return current.data.Orders.find((order) => order.id === screen.orderId)?.number || 'Order details';
+      return current?.data.Orders.find((order) => order.id === screen.orderId)?.number || 'Order details';
     if (screen.customerKey) return customerLabels.value.get(screen.customerKey) || 'Customer details';
     return screen.page === 'Connection' ? 'Settings' : screen.page === 'Catalog' ? 'Products' : screen.page;
   };
@@ -312,7 +313,9 @@ export default component$(() => {
                   </Disclosure>
                 </Panel>
               )}
+              {!current && <WorkspacePreview />}
               {openPages.value.map((tabKey) => {
+                if (!current) return null;
                 const item = parseScreenRoute(tabPaths[tabKey]).page;
                 return (
                   <WorkspacePage

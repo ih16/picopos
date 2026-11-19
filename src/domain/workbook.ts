@@ -1,3 +1,5 @@
+import { orderSubtotal } from './order-totals.ts';
+
 export const ORDER_STATUSES = ['Draft', 'In progress', 'Shipped', 'Completed', 'Cancelled'] as const;
 export const PAYMENT_STATUSES = ['Unpaid', 'Paid', 'Refunded'] as const;
 export const RETURN_STATUSES = ['Requested', 'Received'] as const;
@@ -247,7 +249,7 @@ export function validateChanges(data: WorkbookData, changes: RowChange[]) {
       if (!order.customer.trim()) throw new Error('Enter a customer name.');
       const items = next['Order Items'].filter((item) => item.orderId === order.id);
       if (!items.length) throw new Error('Add at least one item to the order.');
-      const subtotal = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+      const subtotal = orderSubtotal(items);
       if (
         !Number.isFinite(order.discount) ||
         order.discount < 0 ||

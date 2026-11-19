@@ -1,3 +1,4 @@
+import { orderSubtotal, orderTotal } from '../../domain/order-totals';
 import { decimalAmount } from '../../shared/lib/format';
 import { workbookCurrency, workbookNumberFormat } from '../../domain/settings';
 import { component$, useComputed$, useContext, useSignal, type QRL } from '@builder.io/qwik';
@@ -257,11 +258,10 @@ export const Customers = component$<Props>(({ data, busy, error, onCommit$ }) =>
                         </td>
                         <td class="numeric">
                           {decimalAmount(
-                            data['Order Items']
-                              .filter((item) => item.orderId === order.id)
-                              .reduce((sum, item) => sum + item.quantity * item.unitPrice, 0) -
-                              order.discount +
-                              order.shippingCharge,
+                            orderTotal(
+                              orderSubtotal(data['Order Items'].filter((item) => item.orderId === order.id)),
+                              order,
+                            ),
                             numberFormat,
                           )}
                         </td>

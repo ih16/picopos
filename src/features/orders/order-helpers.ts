@@ -6,10 +6,6 @@ export function dateLabel(value: string) {
   return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString();
 }
 
-export function orderSubtotal(items: OrderItem[]) {
-  return items.reduce((total, item) => total + item.quantity * item.unitPrice, 0);
-}
-
 export function quantityLabel(quantity: number) {
   return `${quantity} ${quantity === 1 ? 'unit' : 'units'}`;
 }

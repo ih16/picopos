@@ -1,12 +1,4 @@
-import {
-  component$,
-  createContextId,
-  useContext,
-  useSignal,
-  useVisibleTask$,
-  type QRL,
-  type Signal,
-} from '@builder.io/qwik';
+import { component$, useContext, useSignal, useVisibleTask$, type QRL, type Signal } from '@builder.io/qwik';
 import {
   getAccessToken,
   isGoogleConfigured,
@@ -18,6 +10,7 @@ import {
 import { createSpreadsheet } from '../../infrastructure/google/sheets-client';
 import { Button, Panel } from '../../shared/ui/controls';
 import { Icon } from '../../shared/ui/icon';
+import { ReconnectContext } from './reconnect-context';
 
 interface GoogleConnectionProps {
   saved?: SpreadsheetSelection;
@@ -38,15 +31,6 @@ type ConnectionProps = GoogleConnectionProps &
         onDemo$?: QRL<() => void | Promise<void>>;
       }
   );
-
-export const ReconnectContext = createContextId<{
-  saved: Signal<SpreadsheetSelection | undefined>;
-  expired: Signal<boolean>;
-  dismissed: Signal<boolean>;
-  busy: Signal<boolean>;
-  error: Signal<string>;
-  onReconnect$: GoogleConnectionProps['onSelect$'];
-}>('piecom.google-reconnect');
 
 export const ReconnectNotice = component$(() => {
   const { saved, expired, dismissed, busy, error, onReconnect$ } = useContext(ReconnectContext);

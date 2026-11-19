@@ -1,4 +1,5 @@
 import type { OrderStatus, WorkbookData } from './workbook';
+import { lineSubtotal } from './order-totals.ts';
 
 // USD lifestyle shop; only demand follows Bangladesh's 2026 Eid calendar.
 // Holiday anchors: https://www.britishcouncil.org.bd/sites/default/files/british_council_bangladesh_holiday_list_for_2026_0.pdf
@@ -477,7 +478,7 @@ export function demoWorkbook(now = new Date()): WorkbookData {
           unitPrice: variant.price,
         };
         data['Order Items'].push(item);
-        subtotal += quantity * variant.price;
+        subtotal += lineSubtotal(quantity, variant.price);
       }
       order.discount =
         campaign && random() < 0.65 ? money(subtotal * 0.1) : random() < 0.06 ? money(subtotal * 0.05) : 0;

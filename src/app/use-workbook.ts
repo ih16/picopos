@@ -18,16 +18,15 @@ import {
   type Workbook,
   type WorkbookData,
 } from '../domain/workbook';
-import { ReconnectContext } from '../features/auth/connection';
+import { ReconnectContext } from '../features/auth/reconnect-context';
+import { DEFAULT_SYNC_INTERVAL_SECONDS, syncIntervalSeconds } from '../domain/sync-timing';
 import {
-  DEFAULT_SYNC_INTERVAL_SECONDS,
   readSyncAttempt,
   readSyncInterval,
   storeSyncTiming,
   SYNC_INTERVAL_KEY,
   syncAttemptKey,
-  syncIntervalSeconds,
-} from '../features/sync/sync-timing';
+} from '../infrastructure/storage/sync-timing';
 import {
   clearAccessToken,
   getAccessToken,
@@ -45,6 +44,7 @@ import {
   updateLocalWorkbook,
   watchLocalWorkbook,
 } from '../infrastructure/storage/local-workbook';
+import { syncWorkbookQueue } from './sync-workbook-queue';
 import { addScreenTab } from './navigation/screen-route';
 import type { useWorkspaceNavigation } from './navigation/use-workspace-navigation';
 
@@ -151,25 +151,12 @@ export function useWorkbook(error: Signal<string>, navigation: ReturnType<typeof
         lastAttempt.value = startedAt;
         storeSyncTiming(syncAttemptKey(id), startedAt);
 
-        let pending = before?.pending ?? [];
-        while (true) {
-          const result = await syncWorkbookBatch(accessToken, id, pending);
-          const acknowledged = new Set(result.acknowledged);
-          const attempted = new Set(pending.map(({ id }) => id));
-          const next = await updateLocalWorkbook(id, (latest) => ({
-            ...latest,
-            version: 1,
-            base: result.base,
-            lastSyncedAt: Date.now(),
-            pending: (latest?.pending ?? [])
-              .filter(({ id }) => !acknowledged.has(id))
-              .map((item) => (attempted.has(item.id) ? { ...item, issue: result.blocked[item.id] } : item)),
-          }));
-          await showLocal(next);
-          if (!result.remaining || !acknowledged.size) break;
-          // Keep processing the captured queue when Sheets needs several batches.
-          pending = pending.filter(({ id }) => !acknowledged.has(id));
-        }
+        await syncWorkbookQueue({
+          pending: before?.pending ?? [],
+          syncBatch: (pending) => syncWorkbookBatch(accessToken, id, pending),
+          updateLocal: (update) => updateLocalWorkbook(id, update),
+          onSnapshot: showLocal,
+        });
         if (reconnecting) await rememberAccessToken(id);
         expired.value = false;
         syncError.value = '';

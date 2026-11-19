@@ -1,4 +1,5 @@
-import { getInventory, isShipped, ORDER_STATUSES, type WorkbookData } from './workbook';
+import { getInventory, isShipped, ORDER_STATUSES, type WorkbookData } from './workbook.ts';
+import { lineSubtotal, orderTotal } from './order-totals.ts';
 
 export function dashboardSummary(data: WorkbookData, days: number, now = new Date()) {
   const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
@@ -14,9 +15,11 @@ export function dashboardSummary(data: WorkbookData, days: number, now = new Dat
   });
   const subtotals = new Map<string, number>();
   for (const item of data['Order Items'])
-    subtotals.set(item.orderId, (subtotals.get(item.orderId) ?? 0) + item.quantity * item.unitPrice);
-  const orderTotal = (order: (typeof orders)[number]) =>
-    (subtotals.get(order.id) ?? 0) - order.discount + order.shippingCharge;
+    subtotals.set(
+      item.orderId,
+      (subtotals.get(item.orderId) ?? 0) + lineSubtotal(item.quantity, item.unitPrice),
+    );
+  const totalForOrder = (order: (typeof orders)[number]) => orderTotal(subtotals.get(order.id) ?? 0, order);
   const sales = orders.filter(
     (order) =>
       (order.status === 'In progress' || isShipped(order.status)) && order.paymentStatus !== 'Refunded',
@@ -27,7 +30,7 @@ export function dashboardSummary(data: WorkbookData, days: number, now = new Dat
     const day = byDay.get(dayKey(new Date(order.createdAt)))!;
     day.orders++;
     if (saleIds.has(order.id)) {
-      const total = orderTotal(order);
+      const total = totalForOrder(order);
       day.value += total;
       day.sales++;
       value += total;
@@ -105,7 +108,7 @@ export function dashboardSummary(data: WorkbookData, days: number, now = new Dat
         (order) =>
           order.paymentStatus === 'Unpaid' && (order.status === 'In progress' || isShipped(order.status)),
       )
-      .reduce((sum, order) => sum + orderTotal(order), 0),
+      .reduce((sum, order) => sum + totalForOrder(order), 0),
     statuses: ORDER_STATUSES.map((status) => ({
       status,
       count: orders.filter((order) => order.status === status).length,

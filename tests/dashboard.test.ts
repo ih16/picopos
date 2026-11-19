@@ -1,19 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { readFileSync } from 'node:fs';
-import { runInNewContext } from 'node:vm';
-import ts from 'typescript';
+import {
+  dashboardDateRange,
+  dashboardOrderDays,
+  dashboardPresetRange,
+  dashboardSummary,
+} from '../src/domain/dashboard.ts';
 import * as model from '../src/domain/workbook.ts';
-
-const exports: any = {};
-const source = readFileSync(new URL('../src/domain/dashboard.ts', import.meta.url), 'utf8');
-runInNewContext(
-  ts.transpileModule(source, {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-  }).outputText,
-  { exports, require: () => model, Date },
-);
-const { dashboardSummary } = exports;
 
 test('dashboard counts confirmed sales separately from unpaid balances, refunds and other order states', () => {
   const data = model.emptyWorkbook();
@@ -224,7 +217,6 @@ test('sales costs weight earlier purchase receipts by units and leave unknown co
 });
 
 test('date ranges use available order dates and reject empty or invalid selections', () => {
-  const { dashboardOrderDays, dashboardDateRange, dashboardPresetRange } = exports;
   const data = model.emptyWorkbook();
   const base = {
     id: 'a',

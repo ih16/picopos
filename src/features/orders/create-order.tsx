@@ -1,3 +1,4 @@
+import { lineSubtotal, orderTotal } from '../../domain/order-totals';
 import { money } from '../../shared/lib/format';
 import { workbookCurrency, workbookNumberFormat } from '../../domain/settings';
 import { component$, useContext, useSignal, useStore } from '@builder.io/qwik';
@@ -44,12 +45,15 @@ export const CreateOrder = component$<OrdersProps>(({ data, busy, onCommit$, sav
   const chosenLines = draft.lines.filter((line) => variants.has(line.variantId));
   const totalUnits = chosenLines.reduce((sum, line) => sum + (line.quantity || 0), 0);
   const subtotal = chosenLines.reduce(
-    (total, line) => total + (variants.get(line.variantId)?.price ?? 0) * (line.quantity || 0),
+    (total, line) => total + lineSubtotal(line.quantity || 0, variants.get(line.variantId)?.price ?? 0),
     0,
   );
   const shippingOption = shippingOptions.find((option) => option.id === draft.shippingOptionId);
   const draftShippingCharge = shippingOption?.rate ?? Number(draft.shippingCharge);
-  const draftTotal = subtotal - Number(draft.discount) + draftShippingCharge;
+  const draftTotal = orderTotal(subtotal, {
+    discount: Number(draft.discount),
+    shippingCharge: draftShippingCharge,
+  });
 
   return (
     <div class="stack record-page">
@@ -125,7 +129,7 @@ export const CreateOrder = component$<OrdersProps>(({ data, busy, onCommit$, sav
               error.value = `Enter a whole quantity of 1 or more for item ${index + 1}.`;
               return;
             }
-            subtotal += line.quantity * variant.price;
+            subtotal += lineSubtotal(line.quantity, variant.price);
             changes.push({
               tab: 'Order Items',
               row: {
@@ -356,7 +360,11 @@ export const CreateOrder = component$<OrdersProps>(({ data, busy, onCommit$, sav
                           {variant && (
                             <div class="order-line-price">
                               <strong>
-                                {money(variant.price * (line.quantity || 0), currency, numberFormat)}
+                                {money(
+                                  lineSubtotal(line.quantity || 0, variant.price),
+                                  currency,
+                                  numberFormat,
+                                )}
                               </strong>
                               <span class="muted">{money(variant.price, currency, numberFormat)} each</span>
                             </div>

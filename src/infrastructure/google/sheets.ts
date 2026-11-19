@@ -553,6 +553,8 @@ export async function initializeWorkbook(
     const rows = document.rows.get(tab);
     if (rows && !isEmpty(rows)) {
       checkHeader(tab, rows);
+      // Validate existing records before writing any initialization requests.
+      if (tab !== 'Inventory' && tab !== 'Settings') readRows(tab, rows);
       if (tab === 'Products') requests.push(...(await addProductImageColumn(token, document)));
       const settings = tab === 'Settings' ? readRows(tab, rows) : undefined;
       if (settings && !needsSetup && settings.find((row) => row.id === 'schemaVersion')?.value !== '1') {
@@ -672,8 +674,11 @@ export async function syncWorkbookBatch(
   pending: readonly PendingChange[],
 ): Promise<WorkbookSyncResult> {
   let document = await readDocument(token, workbookId);
-  if (await upgradeWorkbook(token, document)) document = await readDocument(token, workbookId);
-  const current = workbook(document);
+  let current = workbook(document);
+  if (await upgradeWorkbook(token, document)) {
+    document = await readDocument(token, workbookId);
+    current = workbook(document);
+  }
   let projected = current.data;
   let writeImages = hasProductImageColumn(document.rows.get('Products')!);
   let imageSetup: SheetRequest[] | undefined;

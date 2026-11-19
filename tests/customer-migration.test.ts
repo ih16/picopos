@@ -253,3 +253,17 @@ test('workbook setup waits for confirmation, writes preferences, and preserves r
   assert.equal(writes.length, 0);
   assert.equal(rows.get('Settings')!.find(([id]) => id === 'currency')?.[1], 'BDT');
 });
+
+test('sync leaves a workbook on an unsupported schema untouched', async () => {
+  const { load, writes, rows } = runtime();
+  rows.get('Settings')![1] = ['schemaVersion', '2'];
+  await assert.rejects(load('sheets').syncWorkbookBatch('token', 'book', []), /unsupported schema version/);
+  assert.equal(writes.length, 0);
+});
+
+test('connecting does not initialize missing tabs when existing rows cannot be read', async () => {
+  const { load, writes, rows } = runtime();
+  rows.get('Categories')!.push(['category', 'Shoes'], ['category', 'Duplicate']);
+  await assert.rejects(load('sheets').initializeWorkbook('token', 'book'), /Duplicate ID/);
+  assert.equal(writes.length, 0);
+});

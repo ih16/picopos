@@ -2,7 +2,7 @@ import { component$, useId, useSignal, useTask$, type QRL } from '@builder.io/qw
 import { NUMBER_FORMAT_OPTIONS, workbookNumberFormat } from '../../domain/settings';
 import { CURRENCY_OPTIONS } from '../../domain/currencies';
 import { getShippingOptions, makeId, type RowChange, type WorkbookData } from '../../domain/workbook';
-import { SYNC_INTERVALS } from '../sync/sync-timing';
+import { SYNC_INTERVALS } from '../../domain/sync-timing';
 import { ActionBar, Button, Input, Panel, SelectField } from '../../shared/ui/controls';
 
 export const BusinessSettings = component$<{
