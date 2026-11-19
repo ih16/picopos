@@ -182,4 +182,4 @@ Keep credentials, private environment files, and real customer data out of contr
 
 ## License
 
-A license has not yet been selected for this project. No open-source license is currently granted; a `LICENSE` file must be added before an open-source release.
+picopos is licensed under the [MIT License](LICENSE).
