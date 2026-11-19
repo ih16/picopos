@@ -628,14 +628,13 @@ export const Catalog = component$<Props>(({ data, busy, error, onCommit$ }) => {
                 />
               </label>
             </div>
-            <label class="check">
-              <Input
-                type="checkbox"
-                checked={variant.value.active}
-                onChange$={(_, el) => (variant.value = { ...variant.value, active: el.checked })}
-              />{' '}
-              Active variant
-            </label>
+            <Switch
+              label="Active variant"
+              checked={variant.value.active}
+              onChange$={(_, input) => {
+                variant.value = { ...variant.value, active: input.checked };
+              }}
+            />
             {saveError}
             <ActionBar q:slot="actions" label="Editor actions">
               <Button class="secondary" onClick$={closeEditor} icon="close" label="Cancel" />

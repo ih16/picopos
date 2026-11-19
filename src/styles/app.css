@@ -3697,37 +3697,14 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
 .help-article-body li + li {
   margin-top: 6px;
 }
-.help-capture-note {
-  max-width: 80ch;
-  margin-top: 12px;
-  font-size: var(--text-small);
-}
 .help-example {
-  margin-top: 20px;
-}
-.help-example video,
-.help-example img {
+  margin-top: 16px;
   display: block;
-  width: 100%;
-  height: auto;
+  width: auto;
+  max-width: 100%;
+  max-height: min(70dvh, 620px);
   border: 1px solid var(--line);
   border-radius: var(--radius-input);
-  background: var(--surface-soft);
-}
-.help-example video {
-  aspect-ratio: 16 / 10;
-  object-fit: contain;
-}
-.help-example-steps li + li {
-  margin-top: 24px;
-}
-.help-example-steps a {
-  display: block;
-  margin-top: 10px;
-}
-.help-example-steps img {
-  max-height: 480px;
-  object-fit: contain;
 }
 @media (max-width: 1000px) {
   .help-layout {

@@ -18,7 +18,6 @@ export const Help = component$(() => {
           article.title,
           ...(article.paragraphs ?? []),
           ...(article.steps ?? []),
-          ...(article.example?.frames.map((frame) => frame.caption) ?? []),
         ]
           .join(' ')
           .toLowerCase()
@@ -41,7 +40,7 @@ export const Help = component$(() => {
           <Icon name="search" />
           <Input
             type="search"
-            placeholder="Search features, workflows, or questions"
+            placeholder="Search help"
             value={search.value}
             onInput$={(_, input) => {
               search.value = input.value;
@@ -99,13 +98,7 @@ export const Help = component$(() => {
         <main class="help-content" key={`${topic.value}-${query}`}>
           <header class="help-header">
             <div>
-              <h1>Help & documentation</h1>
-              <p class="muted">A guide to every part of your shop, from first setup to daily sales.</p>
-              <p class="muted help-capture-note">
-                Watch & follow guides include captioned videos made from browser screenshots and illustrated
-                steps. Captured in the fictional demo shop on 19 November 2026. Google sign-in, sharing, live
-                sync, and offline recovery are written guides only.
-              </p>
+              <h1>Shop help</h1>
             </div>
           </header>
           <p class="muted help-result-count" role="status">
@@ -143,45 +136,13 @@ export const Help = component$(() => {
                         <p key={paragraph}>{paragraph}</p>
                       ))}
                       {article.example && (
-                        <div class="help-example">
-                          <video
-                            controls
-                            playsInline
-                            preload="none"
-                            poster={`/help/examples/${article.example.frames[0].image}.jpg`}
-                            aria-label={article.example.title}
-                          >
-                            <source src={`/help/examples/${article.example.id}.mp4`} type="video/mp4" />
-                            <track
-                              kind="captions"
-                              src={`/help/examples/${article.example.id}.vtt`}
-                              srclang="en"
-                              label="English steps"
-                              default
-                            />
-                            Your browser does not support video. Follow the illustrated steps below.
-                          </video>
-                          <p class="muted">
-                            Silent step-by-step video · pause at any point. Select a screenshot to enlarge it.
-                          </p>
-                          <ol class="help-example-steps">
-                            {article.example.frames.map((frame) => (
-                              <li key={frame.image}>
-                                <p>{frame.caption}</p>
-                                <a href={`/help/examples/${frame.image}.jpg`} target="_blank" rel="noopener">
-                                  <img
-                                    src={`/help/examples/${frame.image}.jpg`}
-                                    alt={frame.caption}
-                                    loading="lazy"
-                                    decoding="async"
-                                    width={1440}
-                                    height={900}
-                                  />
-                                </a>
-                              </li>
-                            ))}
-                          </ol>
-                        </div>
+                        <img
+                          class="help-example"
+                          src={`/help/examples/${article.example}.gif`}
+                          alt={article.title}
+                          loading="lazy"
+                          decoding="async"
+                        />
                       )}
                     </div>
                   </details>
