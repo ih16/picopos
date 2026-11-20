@@ -1,32 +1,35 @@
-import { $, component$, Slot, useContextProvider, useSignal, useTask$, type QRL } from '@builder.io/qwik';
+import type { JSX } from '@solidjs/web';
+import { createMemo } from 'solid-js';
+
 import { ScreenNavigation } from './screen-navigation';
 import { parseScreenRoute } from './screen-route';
 
 // Each mounted tab owns its route, so switching tabs preserves forms and filters.
-export const WorkspacePage = component$<{
+type WorkspacePageProps = {
   tabKey: string;
   path: string;
   active: boolean;
   label: string;
-  onNavigate$: QRL<(path: string, replace?: boolean, sourceKey?: string) => void>;
-  onClose$: QRL<(key: string) => void | Promise<void>>;
-}>((props) => {
-  const route = useSignal(parseScreenRoute(props.path));
-  useTask$(({ track }) => {
-    route.value = parseScreenRoute(track(() => props.path));
-  });
-  useContextProvider(ScreenNavigation, {
+  onNavigate: (path: string, replace?: boolean, sourceKey?: string) => void;
+  onClose: (key: string) => void | Promise<void>;
+} & { children?: JSX.Element };
+
+export function WorkspacePage(props: WorkspacePageProps) {
+  const route = createMemo(() => parseScreenRoute(props.path));
+  const navigation = {
     route,
-    navigate$: $((path: string, replace = false) => props.onNavigate$(path, replace, props.tabKey)),
-    close$: $(() => props.onClose$(props.tabKey)),
-  });
+    navigate: (path: string, replace = false) => props.onNavigate(path, replace, props.tabKey),
+    close: () => props.onClose(props.tabKey),
+  };
   return (
-    <section
-      hidden={!props.active}
-      class={['workspace-page stack', route.value.page === 'Connection' && 'settings-page']}
-      aria-label={props.label}
-    >
-      <Slot />
-    </section>
+    <ScreenNavigation value={navigation}>
+      <section
+        hidden={!props.active}
+        class={['workspace-page stack', route().page === 'Connection' && 'settings-page']}
+        aria-label={props.label}
+      >
+        {props.children}
+      </section>
+    </ScreenNavigation>
   );
-});
+}

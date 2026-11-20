@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 export function secureHtml(html) {
   const hashes = new Set();
   for (const match of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)) {
-    if (!match[2] || /\bsrc\s*=/.test(match[1]) || /\btype="qwik\/json"/.test(match[1])) continue;
+    if (!match[2] || /\bsrc\s*=/.test(match[1])) continue;
     hashes.add(`'sha256-${createHash('sha256').update(match[2]).digest('base64')}'`);
   }
   const policy = [

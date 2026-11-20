@@ -1,140 +1,127 @@
-import { component$, Slot, type PropsOf, type QRL, type Signal } from '@builder.io/qwik';
-import { Collapsible, Modal as HeadlessModal, Polymorphic } from '@qwik-ui/headless';
+import type { JSX } from '@solidjs/web';
+import { omit } from 'solid-js';
+
 import { Icon, type IconName } from './icon';
-export { Accordion } from '@qwik-ui/headless';
 
-type ButtonProps = Omit<PropsOf<'button'>, 'ref'> & {
-  icon?: IconName;
-  mobileIconOnly?: boolean;
-  label?: string;
-  unstyled?: boolean;
-  elementRef?: Signal<HTMLButtonElement | undefined>;
-};
+export { Modal } from './modal';
+export { MultiSelect, SelectField } from './select';
 
-// The Styled Kit uses native elements for basic form controls. Keep their
-// names, refs and validation intact while applying picopos's design tokens.
-export const Button = component$<ButtonProps>(
-  ({ type = 'button', class: className, icon, label, mobileIconOnly, unstyled, elementRef, ...rest }) => (
-    <Polymorphic
-      as="button"
-      title={label ?? rest['aria-label']}
-      {...rest}
-      type={type}
-      ref={elementRef}
+type PropsOf<T extends keyof JSX.IntrinsicElements> = JSX.IntrinsicElements[T];
+type Children = { children?: JSX.Element };
+type Sized = { controlSize?: 'sm' | 'md' };
+
+export function Button(
+  props: PropsOf<'button'> & {
+    icon?: IconName;
+    mobileIconOnly?: boolean;
+    label?: string;
+    unstyled?: boolean;
+  },
+) {
+  return (
+    <button
+      {...omit(
+        props,
+        'icon',
+        'mobileIconOnly',
+        'label',
+        'unstyled',
+
+        'children',
+        'class',
+        'type',
+        'title',
+      )}
+
+      type={props.type ?? 'button'}
+      title={props.title ?? props.label ?? props['aria-label']}
       class={[
-        !unstyled && 'button',
-        icon && 'responsive-action',
-        mobileIconOnly && 'mobile-icon-only',
-        className,
+        !props.unstyled && 'button',
+        props.icon && 'responsive-action',
+        props.mobileIconOnly && 'mobile-icon-only',
+        props.class,
       ]}
     >
-      {icon && <Icon name={icon} />}
-      {label && <span class="action-label">{label}</span>}
-      <Slot />
-    </Polymorphic>
-  ),
-);
+      {props.icon && <Icon name={props.icon} />}
+      {props.label && <span class="action-label">{props.label}</span>}
+      {props.children}
+    </button>
+  );
+}
+export function Input(props: PropsOf<'input'> & Sized) {
+  return <input {...omit(props, 'controlSize')} data-control-size={props.controlSize ?? 'md'} />;
+}
+export function Textarea(props: PropsOf<'textarea'> & Sized) {
+  return <textarea {...omit(props, 'controlSize')} data-control-size={props.controlSize ?? 'md'} />;
+}
+type SwitchProps = { label: string; checked: boolean; onChange: PropsOf<'input'>['onChange'] };
 
-type ControlSize = 'sm' | 'md';
-type ControlSizeProps = { controlSize?: ControlSize };
-
-export const Input = component$<PropsOf<'input'> & ControlSizeProps>(({ controlSize = 'md', ...props }) => (
-  <input {...props} data-control-size={controlSize} />
-));
-
-export const Switch = component$<{
-  label: string;
-  checked: boolean;
-  onChange$: PropsOf<'input'>['onChange$'];
-}>(({ label, checked, onChange$ }) => (
-  <label class="switch-control">
-    {label}
-    <input type="checkbox" role="switch" checked={checked} onChange$={onChange$} />
-  </label>
-));
-
-export const Textarea = component$<PropsOf<'textarea'> & ControlSizeProps>(
-  ({ controlSize = 'md', ...props }) => <textarea {...props} data-control-size={controlSize} />,
-);
-
-export const Panel = component$<PropsOf<'div'>>(({ class: className, ...rest }) => (
-  <Polymorphic as="div" {...rest} class={['panel', className]}>
-    <Slot />
-  </Polymorphic>
-));
-
-export const Table = component$<PropsOf<'table'> & { desktopOnly?: boolean }>(({ desktopOnly, ...props }) => (
-  <div class={['table-wrap', desktopOnly && 'desktop-table']}>
-    <table {...props} class={['data-table', props.class]}>
-      <Slot />
-    </table>
-  </div>
-));
-
-export const ActionBar = component$<{ label?: string; class?: string }>(
-  ({ label = 'Page actions', class: className }) => (
-    <div class={['action-bar', className]} role="group" aria-label={label}>
-      <Slot />
+export function Switch(props: SwitchProps) {
+  return (
+    <label class="switch-control">
+      {props.label}
+      <input type="checkbox" role="switch" checked={props.checked} onChange={props.onChange} />
+    </label>
+  );
+}
+export function Panel(props: PropsOf<'div'>) {
+  return <div {...omit(props, 'class')} class={['panel', props.class]} />;
+}
+export function Table(props: PropsOf<'table'> & { desktopOnly?: boolean }) {
+  return (
+    <div class={['table-wrap', props.desktopOnly && 'desktop-table']}>
+      <table {...omit(props, 'class', 'desktopOnly')} class={['data-table', props.class]} />
     </div>
-  ),
-);
+  );
+}
+type ActionBarProps = Children & { label?: string; class?: string };
 
-export const Badge = component$<{ status?: string; class?: string }>(({ status, class: className }) => (
-  <Polymorphic as="span" class={['badge', className]} data-status={status}>
-    <Slot />
-  </Polymorphic>
-));
-
-export const Disclosure = component$<{ label: string; class?: string }>(({ label, class: className }) => (
-  <Collapsible.Root class={['disclosure', className]}>
-    <Collapsible.Trigger class="disclosure-trigger">
-      <span>{label}</span>
-      <span class="control-chevron" aria-hidden="true" />
-    </Collapsible.Trigger>
-    <Collapsible.Content class="disclosure-content">
-      <Slot />
-    </Collapsible.Content>
-  </Collapsible.Root>
-));
-
-// Keep submit buttons inside their form while the fields scroll independently in dialogs.
-export const EditorForm = component$<PropsOf<'form'>>(({ class: className, ...props }) => (
-  <form {...props} class={[className, 'editor-form']}>
-    <div class="editor-fields">
-      <Slot />
+export function ActionBar(props: ActionBarProps) {
+  return (
+    <div class={['action-bar', props.class]} role="group" aria-label={props.label ?? 'Page actions'}>
+      {props.children}
     </div>
-    <Slot name="actions" />
-  </form>
-));
+  );
+}
+type BadgeProps = Children & { status?: string; class?: string };
 
-export const Modal = component$<{
-  dismissLabel?: string;
-  open: Signal<boolean>;
-  title: string;
-  class?: string;
-  onClose$?: QRL<() => void | Promise<void>>;
-  onClosed$?: QRL<() => void | Promise<void>>;
-}>(({ open, title, class: className, onClose$, onClosed$, dismissLabel }) => (
-  <HeadlessModal.Root bind:show={open} closeOnBackdropClick={false} onClose$={onClose$}>
-    <HeadlessModal.Panel class={['ui-modal', className]} onClose$={onClosed$}>
-      <HeadlessModal.Header class="ui-modal-header">
-        <HeadlessModal.Title>{title}</HeadlessModal.Title>
-        <HeadlessModal.Close class="utility-button ui-modal-close" aria-label="Close dialog">
-          <span aria-hidden="true">×</span>
-        </HeadlessModal.Close>
-        <Slot name="notice" />
-      </HeadlessModal.Header>
-      <HeadlessModal.Content class="ui-modal-content">
-        <Slot />
-      </HeadlessModal.Content>
-      <Slot name="footer" />
-      {dismissLabel && (
-        <footer class="modal-footer">
-          <HeadlessModal.Close class="button secondary">{dismissLabel}</HeadlessModal.Close>
-        </footer>
-      )}
-    </HeadlessModal.Panel>
-  </HeadlessModal.Root>
-));
+export function Badge(props: BadgeProps) {
+  return (
+    <span class={['badge', props.class]} data-status={props.status}>
+      {props.children}
+    </span>
+  );
+}
+type DisclosureProps = Children & { label: string; class?: string };
 
-export { MultiSelect, SelectField } from './select';
+export function Disclosure(props: DisclosureProps) {
+  return (
+    <details class={['disclosure', props.class]}>
+      <summary class="disclosure-trigger">
+        <span>{props.label}</span>
+        <span class="control-chevron" aria-hidden="true" />
+      </summary>
+      <div class="disclosure-content">{props.children}</div>
+    </details>
+  );
+}
+type EditorFormProps = Omit<PropsOf<'form'>, 'onSubmit'> & {
+  actions?: JSX.Element;
+  onSubmit: (event: SubmitEvent) => unknown;
+};
+
+export function EditorForm(props: EditorFormProps) {
+  return (
+    <form
+      {...omit(props, 'actions', 'children', 'class', 'onSubmit')}
+      class={[props.class, 'editor-form']}
+      onSubmit={(event) => {
+        event.preventDefault();
+        void props.onSubmit(event);
+      }}
+    >
+      <div class="editor-fields">{props.children}</div>
+      {props.actions}
+    </form>
+  );
+}

@@ -1,19 +1,21 @@
-import { component$, useComputed$, useSignal, type QRL, type Signal } from '@builder.io/qwik';
+import { createMemo, createSignal } from 'solid-js';
+
 import { Button, Input } from '../../shared/ui/controls';
 import { ProductPhoto, photoSource } from '../../shared/ui/product-thumbnail';
 import { makeThumbnail, photoTypes } from './product-image';
 
-export const ProductImageInput = component$<{
+type ProductImageInputProps = {
   value?: string;
   disabled?: boolean;
-  processing?: Signal<boolean>;
-  editorVersion?: Readonly<Signal<number | string>>;
-  onChange$: QRL<(value: string) => void | Promise<void>>;
-}>((props) => {
-  const ownProcessing = useSignal(false);
-  const processing = props.processing ?? ownProcessing;
-  const error = useSignal('');
-  const photo = useComputed$(() => photoSource(props.value));
+  processing: boolean;
+  onProcessingChange: (active: boolean) => void;
+  editorVersion: string;
+  onChange: (value: string) => void | Promise<void>;
+};
+
+export function ProductImageInput(props: ProductImageInputProps) {
+  const [error, setError] = createSignal('');
+  const photo = createMemo(() => photoSource(props.value));
 
   return (
     <div class="product-image-input stack">
@@ -23,59 +25,55 @@ export const ProductImageInput = component$<{
           type="file"
           class="product-photo-file"
           accept={photoTypes.join(',')}
-          disabled={props.disabled || processing.value}
-          onChange$={async (_, input) => {
+          disabled={props.disabled || props.processing}
+          onChange={async (event) => {
+            const input = event.currentTarget;
             const file = input.files?.[0];
             input.value = '';
             if (!file) return;
-            const version = props.editorVersion?.value;
-            const isCurrent = () => input.isConnected && props.editorVersion?.value === version;
-            error.value = '';
-            processing.value = true;
+            const version = props.editorVersion;
+            const isCurrent = () => input.isConnected && props.editorVersion === version;
+            setError('');
+            props.onProcessingChange(true);
             try {
               const thumbnail = await makeThumbnail(file);
-              if (isCurrent()) await props.onChange$(thumbnail);
+              if (isCurrent()) await props.onChange(thumbnail);
             } catch (cause) {
               if (isCurrent())
-                error.value = cause instanceof Error ? cause.message : 'Could not prepare this photo.';
+                setError(cause instanceof Error ? cause.message : 'Could not prepare this photo.');
             } finally {
-              if (isCurrent()) processing.value = false;
+              if (isCurrent()) props.onProcessingChange(false);
             }
           }}
         />
       </label>
       {!!props.value && (
         <div class="product-image-actions row">
-          {photo.value && (
-            <ProductPhoto
-              key={photo.value}
-              value={photo.value}
-              name="Product picture preview"
-              class="product-photo-preview"
-            />
+          {photo() && (
+            <ProductPhoto value={photo()} name="Product picture preview" class="product-photo-preview" />
           )}
           <Button
             class="secondary compact"
-            disabled={props.disabled || processing.value}
-            onClick$={async () => {
-              error.value = '';
-              await props.onChange$('');
+            disabled={props.disabled || props.processing}
+            onClick={async () => {
+              setError('');
+              await props.onChange('');
             }}
             icon="close"
             label="Remove picture"
           />
         </div>
       )}
-      {processing.value && (
+      {props.processing && (
         <p class="muted" role="status">
           Preparing picture…
         </p>
       )}
-      {error.value && (
+      {error() && (
         <p class="notice error" role="alert">
-          {error.value}
+          {error()}
         </p>
       )}
     </div>
   );
-});
+}

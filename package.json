@@ -9,29 +9,32 @@
     "node": ">=22.12"
   },
   "scripts": {
-    "dev": "vite --mode ssr",
-    "build": "vite build && vite build --config adapters/static/vite.config.ts && node scripts/secure-html.mjs && node scripts/build-offline-shell.mjs",
+    "dev": "vite",
+    "build": "vite build && node scripts/secure-html.mjs && node scripts/build-offline-shell.mjs",
     "preview": "vite preview --config vite.preview.config.ts",
     "check": "tsc --noEmit",
     "test": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test tests/*.test.ts",
     "verify": "npm run format:check && npm run check && npm test && npm run build",
     "audit": "npm audit --audit-level=high",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "test:browser": "npm run build && playwright test"
   },
   "dependencies": {
-    "@builder.io/qwik": "^1.20.2",
-    "@builder.io/qwik-city": "^1.20.2",
     "@fontsource-variable/dm-sans": "^5.3.0",
-    "@qwik-ui/headless": "^0.7.7"
+    "@solid-primitives/event-listener": "^3.0.0",
+    "@solid-primitives/media": "^4.0.0",
+    "@solid-primitives/resize-observer": "^4.0.0",
+    "@solid-primitives/virtual": "^1.0.1",
+    "@solidjs/web": "2.0.3",
+    "solid-js": "2.0.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.1",
+    "@solidjs/vite-plugin": "3.0.1",
     "@types/node": "^24.0.0",
     "prettier": "3.10.1",
     "typescript": "~5.9.3",
-    "vite": "^7.2.0"
-  },
-  "overrides": {
-    "sharp": "^0.35.5"
+    "vite": "^8.0.0"
   }
 }

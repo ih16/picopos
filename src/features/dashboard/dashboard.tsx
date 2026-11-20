@@ -1,87 +1,94 @@
-import { money as formatMoney } from '../../shared/lib/format';
-import { workbookCurrency, workbookNumberFormat } from '../../domain/settings';
-import { component$, useContext, useSignal, useVisibleTask$ } from '@builder.io/qwik';
+import { createResizeObserver } from '@solid-primitives/resize-observer';
+import { createMemo, createSignal, Show, useContext } from 'solid-js';
+
 import { ScreenNavigation } from '../../app/navigation/screen-navigation';
 import {
-  dashboardSummary,
-  dashboardOrderDays,
   dashboardDateRange,
+  dashboardOrderDays,
   dashboardPresetRange,
+  dashboardSummary,
 } from '../../domain/dashboard';
+import { workbookCurrency, workbookNumberFormat } from '../../domain/settings';
 import type { WorkbookData } from '../../domain/workbook';
-import { Button, Panel, Modal, Input } from '../../shared/ui/controls';
+import { money as formatMoney } from '../../shared/lib/format';
+import { PagedRows } from '../../shared/ui/paged-rows';
+import { Button, Input, Modal, Panel } from '../../shared/ui/controls';
 import { ProductLabel } from '../../shared/ui/product-thumbnail';
 
 const colors = ['#8993aa', '#a38be0', '#5c9ed6', '#4caa91', '#d98585'];
 
-export const Dashboard = component$<{ data: WorkbookData }>(({ data }) => {
-  const days = useSignal(30);
-  const customStart = useSignal('');
-  const customEnd = useSignal('');
-  const rangeOpen = useSignal(false);
-  const draftStart = useSignal('');
-  const draftEnd = useSignal('');
-  const availableDays = dashboardOrderDays(data);
-  const firstDay = availableDays[0];
-  const lastDay = availableDays.at(-1);
-  const customRange = dashboardDateRange(customStart.value, customEnd.value, availableDays);
-  const draftRange =
-    draftStart.value >= firstDay && draftEnd.value <= (lastDay ?? '')
-      ? dashboardDateRange(draftStart.value, draftEnd.value, availableDays)
-      : undefined;
-  const periodDays = customRange?.days ?? days.value;
-  const periodLabel = customRange ? `${customStart.value} – ${customEnd.value}` : `last ${days.value} days`;
-  const intervals = Math.max(1, periodDays - 1);
-  const chart = useSignal<SVGSVGElement>();
-  const chartWidth = useSignal(700);
-  useVisibleTask$(({ cleanup }) => {
-    const element = chart.value;
-    if (!element) return;
-    const measure = () => {
-      chartWidth.value = element.getBoundingClientRect().width;
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
-    cleanup(() => observer.disconnect());
+type DashboardProps = { data: WorkbookData };
+
+export function Dashboard(props: DashboardProps) {
+  const [days, setDays] = createSignal(30);
+  const [customStart, setCustomStart] = createSignal('');
+  const [customEnd, setCustomEnd] = createSignal('');
+  const [rangeOpen, setRangeOpen] = createSignal(false);
+  const [draftStart, setDraftStart] = createSignal('');
+  const [draftEnd, setDraftEnd] = createSignal('');
+  const availableDays = createMemo(() => dashboardOrderDays(props.data));
+  const firstDay = createMemo(() => availableDays()[0]);
+  const lastDay = createMemo(() => availableDays().at(-1));
+  const customRange = createMemo(() => dashboardDateRange(customStart(), customEnd(), availableDays()));
+  const draftRange = createMemo(() =>
+    draftStart() >= firstDay() && draftEnd() <= (lastDay() ?? '')
+      ? dashboardDateRange(draftStart(), draftEnd(), availableDays())
+      : undefined,
+  );
+  const periodDays = createMemo(() => customRange()?.days ?? days());
+  const periodLabel = createMemo(() =>
+    customRange() ? `${customStart()} – ${customEnd()}` : `last ${days()} days`,
+  );
+  const intervals = createMemo(() => Math.max(1, periodDays() - 1));
+  const [chart, setChart] = createSignal<SVGSVGElement>();
+  const [chartWidth, setChartWidth] = createSignal(700);
+  createResizeObserver(chart, (rect) => setChartWidth(rect.width));
+  const plotWidth = createMemo(() => chartWidth() - 68);
+  const [activeDay, setActiveDay] = createSignal<number>();
+  const [showCost, setShowCost] = createSignal(false);
+  const [showAllStock, setShowAllStock] = createSignal(false);
+  const { navigate } = useContext(ScreenNavigation);
+  const summary = createMemo(() => dashboardSummary(props.data, periodDays(), customRange()?.end));
+  const currency = createMemo(() => workbookCurrency(props.data));
+  const numberFormat = createMemo(() => workbookNumberFormat(props.data));
+  const money = (value: number) => formatMoney(value, currency(), numberFormat());
+  const max = createMemo(() =>
+    Math.max(1, ...summary().trend.map((day) => Math.max(day.value, showCost() ? (day.cost ?? 0) : 0))),
+  );
+  const costPath = createMemo(() =>
+    summary()
+      .trend.map((day, index) =>
+        day.cost === null
+          ? ''
+          : `${index === 0 || summary().trend[index - 1].cost === null ? 'M' : 'L'}${48 + (index * plotWidth()) / intervals()},${184 - (day.cost / max()) * 150}`,
+      )
+      .join(' '),
+  );
+  const uncostedUnits = createMemo(() => summary().trend.reduce((sum, day) => sum + day.uncostedUnits, 0));
+  const costedUnits = createMemo(() => summary().trend.reduce((sum, day) => sum + day.costedUnits, 0));
+  const costedValue = createMemo(() => summary().trend.reduce((sum, day) => sum + day.costedValue, 0));
+  const estimatedCost = createMemo(() => summary().trend.reduce((sum, day) => sum + (day.cost ?? 0), 0));
+  const points = createMemo(() =>
+    summary()
+      .trend.map(
+        (day, index) => `${48 + (index * plotWidth()) / intervals()},${184 - (day.value / max()) * 150}`,
+      )
+      .join(' '),
+  );
+  const highlighted = createMemo(() => {
+    const index = activeDay();
+    return index === undefined ? undefined : summary().trend[index];
   });
-  const plotWidth = chartWidth.value - 68;
-  const activeDay = useSignal<number>();
-  const showCost = useSignal(false);
-  const showAllStock = useSignal(false);
-  const { navigate$ } = useContext(ScreenNavigation);
-  const summary = dashboardSummary(data, periodDays, customRange?.end);
-  const currency = workbookCurrency(data);
-  const numberFormat = workbookNumberFormat(data);
-  const money = (value: number) => formatMoney(value, currency, numberFormat);
-  const max = Math.max(
-    1,
-    ...summary.trend.map((day) => Math.max(day.value, showCost.value ? (day.cost ?? 0) : 0)),
+  const tooltipX = createMemo(() =>
+    Math.min(chartWidth() - 244, Math.max(48, 48 + ((activeDay() ?? 0) * plotWidth()) / intervals() - 112)),
   );
-  const costPath = summary.trend
-    .map((day, index) =>
-      day.cost === null
-        ? ''
-        : `${index === 0 || summary.trend[index - 1].cost === null ? 'M' : 'L'}${48 + (index * plotWidth) / intervals},${184 - (day.cost / max) * 150}`,
-    )
-    .join(' ');
-  const uncostedUnits = summary.trend.reduce((sum, day) => sum + day.uncostedUnits, 0);
-  const costedUnits = summary.trend.reduce((sum, day) => sum + day.costedUnits, 0);
-  const costedValue = summary.trend.reduce((sum, day) => sum + day.costedValue, 0);
-  const estimatedCost = summary.trend.reduce((sum, day) => sum + (day.cost ?? 0), 0);
-  const points = summary.trend
-    .map((day, index) => `${48 + (index * plotWidth) / intervals},${184 - (day.value / max) * 150}`)
-    .join(' ');
-  const highlighted = activeDay.value === undefined ? undefined : summary.trend[activeDay.value];
-  const tooltipX = Math.min(
-    chartWidth.value - 244,
-    Math.max(48, 48 + ((activeDay.value ?? 0) * plotWidth) / intervals - 112),
+  const tooltipY = createMemo(() =>
+    highlighted()
+      ? Math.max(0, 184 - ((highlighted()?.value ?? 0) / max()) * 150 - (showCost() ? 122 : 100))
+      : 0,
   );
-  const tooltipY = highlighted
-    ? Math.max(0, 184 - (highlighted.value / max) * 150 - (showCost.value ? 122 : 100))
-    : 0;
-  const topUnits = Math.max(1, ...summary.products.map((product) => product.units));
-  let offset = 0;
+  const topUnits = createMemo(() => Math.max(1, ...summary().products.map((product) => product.units)));
+
   return (
     <section class="dashboard-page">
       <header class="dashboard-header">
@@ -92,21 +99,20 @@ export const Dashboard = component$<{ data: WorkbookData }>(({ data }) => {
         <div class="row catalog-tabs" role="group" aria-label="Dashboard period">
           {[7, 30, 90].map((period) => (
             <Button
-              key={period}
-              class={!customRange && days.value === period ? '' : 'secondary'}
-              aria-pressed={!customRange && days.value === period}
+              class={!customRange() && days() === period ? '' : 'secondary'}
+              aria-pressed={!customRange() && days() === period ? 'true' : 'false'}
               disabled={
                 !dashboardDateRange(
                   dashboardPresetRange(period).start,
                   dashboardPresetRange(period).end,
-                  availableDays,
+                  availableDays(),
                 )
               }
-              onClick$={() => {
-                days.value = period;
-                customStart.value = '';
-                customEnd.value = '';
-                activeDay.value = undefined;
+              onClick={() => {
+                setDays(period);
+                setCustomStart('');
+                setCustomEnd('');
+                setActiveDay(undefined);
               }}
             >
               {period} days
@@ -115,32 +121,61 @@ export const Dashboard = component$<{ data: WorkbookData }>(({ data }) => {
           <Button
             mobileIconOnly
             icon="calendar"
-            label={customRange ? periodLabel : 'Date range'}
-            class={customRange ? '' : 'secondary'}
-            disabled={!availableDays.length}
-            aria-pressed={Boolean(customRange)}
-            onClick$={() => {
-              draftStart.value = customRange ? customStart.value : firstDay;
-              draftEnd.value = customRange ? customEnd.value : lastDay!;
-              rangeOpen.value = true;
+            label={customRange() ? periodLabel() : 'Date range'}
+            class={customRange() ? '' : 'secondary'}
+            disabled={!availableDays().length}
+            aria-pressed={Boolean(customRange()) ? 'true' : 'false'}
+            onClick={() => {
+              setDraftStart(customRange() ? customStart() : firstDay());
+              setDraftEnd(customRange() ? customEnd() : lastDay()!);
+              setRangeOpen(true);
             }}
           />
         </div>
       </header>
-      <Modal open={rangeOpen} title="Select date range">
+      <Modal
+        open={rangeOpen()}
+        onDismiss={() => setRangeOpen(false)}
+        title="Select date range"
+        footer={
+          <footer class="modal-footer">
+            <Button
+              class="secondary"
+              onClick={() => {
+                setRangeOpen(false);
+              }}
+              icon="close"
+              label="Cancel"
+            />
+            <Button
+              disabled={!draftRange()}
+              onClick={() => {
+                if (!draftRange()) return;
+                setCustomStart(draftStart());
+                setCustomEnd(draftEnd());
+                setActiveDay(undefined);
+                setRangeOpen(false);
+              }}
+            >
+              Apply range
+            </Button>
+          </footer>
+        }
+      >
         <div class="stack">
           <p class="muted">
-            Available order history: {firstDay} – {lastDay}
+            Available order history: {firstDay()} – {lastDay()}
           </p>
           <label>
             From
             <Input
               type="date"
-              min={firstDay}
-              max={draftEnd.value || lastDay}
-              value={draftStart.value}
-              onInput$={(_, element) => {
-                draftStart.value = element.value;
+              min={firstDay()}
+              max={draftEnd() || lastDay()}
+              value={draftStart()}
+              onInput={(event) => {
+                const element = event.currentTarget;
+                setDraftStart(element.value);
               }}
             />
           </label>
@@ -148,68 +183,47 @@ export const Dashboard = component$<{ data: WorkbookData }>(({ data }) => {
             To
             <Input
               type="date"
-              min={draftStart.value || firstDay}
-              max={lastDay}
-              value={draftEnd.value}
-              onInput$={(_, element) => {
-                draftEnd.value = element.value;
+              min={draftStart() || firstDay()}
+              max={lastDay()}
+              value={draftEnd()}
+              onInput={(event) => {
+                const element = event.currentTarget;
+                setDraftEnd(element.value);
               }}
             />
           </label>
-          {!draftRange && (
+          {!draftRange() && (
             <p class="muted" role="status">
               Choose a valid range within the available history containing at least one order.
             </p>
           )}
         </div>
-        <footer q:slot="footer" class="modal-footer">
-          <Button
-            class="secondary"
-            onClick$={() => {
-              rangeOpen.value = false;
-            }}
-            icon="close"
-            label="Cancel"
-          />
-          <Button
-            disabled={!draftRange}
-            onClick$={() => {
-              if (!draftRange) return;
-              customStart.value = draftStart.value;
-              customEnd.value = draftEnd.value;
-              activeDay.value = undefined;
-              rangeOpen.value = false;
-            }}
-          >
-            Apply range
-          </Button>
-        </footer>
       </Modal>
       <div class="dashboard-scroll stack">
         <dl class="dashboard-metrics">
           {[
             {
               label: 'Sales value',
-              value: money(summary.value),
-              detail: `${summary.sales} confirmed orders`,
+              value: money(summary().value),
+              detail: `${summary().sales} confirmed orders`,
             },
             {
               label: 'Orders placed',
-              value: summary.orders.toLocaleString(numberFormat),
-              detail: `All states · ${periodLabel}`,
+              value: summary().orders.toLocaleString(numberFormat()),
+              detail: `All states · ${periodLabel()}`,
             },
             {
               label: 'Average sale',
-              value: money(summary.average),
+              value: money(summary().average),
               detail: 'Per confirmed order',
             },
             {
               label: 'Outstanding payments',
-              value: money(summary.unpaid),
+              value: money(summary().unpaid),
               detail: 'In progress, shipped & completed',
             },
           ].map((metric) => (
-            <div class="panel dashboard-metric" key={metric.label}>
+            <div class="panel dashboard-metric">
               <dt>{metric.label}</dt>
               <dd>{metric.value}</dd>
               <p class="muted">{metric.detail}</p>
@@ -221,30 +235,32 @@ export const Dashboard = component$<{ data: WorkbookData }>(({ data }) => {
             <div class="panel-heading dashboard-trend-heading">
               <div>
                 <h2>Sales trend</h2>
-                <p class="muted">By order creation date · {currency}</p>
+                <p class="muted">By order creation date · {currency()}</p>
               </div>
               <dl class="dashboard-trend-totals">
                 <div>
                   <dt>Sales</dt>
-                  <dd class="dashboard-highlight">{money(summary.value)}</dd>
+                  <dd class="dashboard-highlight">{money(summary().value)}</dd>
                 </div>
-                {showCost.value && (
+                {showCost() && (
                   <>
                     <div>
                       <dt>Estimated cost</dt>
                       <dd class="dashboard-total-cost">
-                        {uncostedUnits && !costedUnits ? '—' : money(estimatedCost)}
+                        {uncostedUnits() && !costedUnits() ? '—' : money(estimatedCost())}
                       </dd>
                     </div>
                     <div>
                       <dt>Estimated profit</dt>
-                      <dd>{uncostedUnits && !costedUnits ? '—' : money(costedValue - estimatedCost)}</dd>
+                      <dd>
+                        {uncostedUnits() && !costedUnits() ? '—' : money(costedValue() - estimatedCost())}
+                      </dd>
                     </div>
-                    {uncostedUnits > 0 && (
+                    {uncostedUnits() > 0 && (
                       <div>
                         <dt>Units missing cost</dt>
                         <dd>
-                          {uncostedUnits} of {costedUnits + uncostedUnits}
+                          {uncostedUnits()} of {costedUnits() + uncostedUnits()}
                         </dd>
                       </div>
                     )}
@@ -258,7 +274,7 @@ export const Dashboard = component$<{ data: WorkbookData }>(({ data }) => {
                   <i style={{ background: 'var(--dashboard-accent)' }} />
                   Sales
                 </span>
-                {showCost.value && (
+                {showCost() && (
                   <span>
                     <i style={{ background: 'var(--dashboard-cost)' }} />
                     Estimated cost
@@ -267,59 +283,61 @@ export const Dashboard = component$<{ data: WorkbookData }>(({ data }) => {
               </div>
               <Button
                 class="secondary compact"
-                aria-pressed={showCost.value}
-                onClick$={() => {
-                  showCost.value = !showCost.value;
+                aria-pressed={showCost() ? 'true' : 'false'}
+                onClick={() => {
+                  setShowCost(!showCost());
                 }}
               >
-                {showCost.value ? 'Hide cost' : 'Show cost'}
+                {showCost() ? 'Hide cost' : 'Show cost'}
               </Button>
             </div>
             <svg
               class="dashboard-line-chart"
-              ref={chart}
-              viewBox={`0 0 ${chartWidth.value} 225`}
-              role="group"
-              onPointerLeave$={() => {
-                activeDay.value = undefined;
+              ref={(el) => {
+                setChart(el);
               }}
-              aria-label={`Sales value for ${periodLabel}: ${money(summary.value)}`}
+              viewBox={`0 0 ${chartWidth()} 225`}
+              role="group"
+              onPointerLeave={() => {
+                setActiveDay(undefined);
+              }}
+              aria-label={`Sales value for ${periodLabel()}: ${money(summary().value)}`}
             >
               {[0, 0.5, 1].map((fraction) => (
-                <g key={fraction}>
+                <g>
                   <line
                     x1="48"
-                    x2={chartWidth.value - 20}
+                    x2={chartWidth() - 20}
                     y1={184 - fraction * 150}
                     y2={184 - fraction * 150}
                     class="dashboard-gridline"
                   />
                   <text x="40" y={188 - fraction * 150} text-anchor="end">
-                    {new Intl.NumberFormat(numberFormat, {
+                    {new Intl.NumberFormat(numberFormat(), {
                       notation: 'compact',
                       maximumFractionDigits: 1,
-                    }).format(max * fraction)}
+                    }).format(max() * fraction)}
                   </text>
                 </g>
               ))}
-              {periodDays > 1 && (
+              {periodDays() > 1 && (
                 <polygon
-                  points={`48,184 ${points} ${chartWidth.value - 20},184`}
+                  points={`48,184 ${points()} ${chartWidth() - 20},184`}
                   fill="var(--dashboard-accent)"
                   opacity=".1"
                 />
               )}
               <polyline
-                points={points}
+                points={points()}
                 fill="none"
                 stroke="var(--dashboard-accent)"
                 stroke-width="2"
                 stroke-linejoin="round"
               />
-              {showCost.value && (
+              {showCost() && (
                 <path
                   class="dashboard-cost-line"
-                  d={costPath}
+                  d={costPath()}
                   fill="none"
                   stroke="var(--dashboard-cost)"
                   stroke-width="2"
@@ -327,111 +345,111 @@ export const Dashboard = component$<{ data: WorkbookData }>(({ data }) => {
                   stroke-linejoin="round"
                 />
               )}
-              {summary.trend.map((day, index) => (
-                <g key={day.day}>
-                  {showCost.value && day.cost !== null && (
+              {summary().trend.map((day, index) => (
+                <g>
+                  {showCost() && day.cost !== null && (
                     <circle
-                      cx={48 + (index * plotWidth) / intervals}
-                      cy={184 - (day.cost / max) * 150}
-                      r={activeDay.value === index ? 4 : 3}
+                      cx={48 + (index * plotWidth()) / intervals()}
+                      cy={184 - (day.cost / max()) * 150}
+                      r={activeDay() === index ? 4 : 3}
                       class="dashboard-cost-point"
                       fill="var(--dashboard-cost)"
-                      onPointerEnter$={() => {
-                        activeDay.value = index;
+                      onPointerEnter={() => {
+                        setActiveDay(index);
                       }}
-                      onPointerLeave$={() => {
-                        activeDay.value = undefined;
+                      onPointerLeave={() => {
+                        setActiveDay(undefined);
                       }}
-                      onClick$={() => {
-                        activeDay.value = index;
+                      onClick={() => {
+                        setActiveDay(index);
                       }}
                     />
                   )}
 
                   <circle
-                    cx={48 + (index * plotWidth) / intervals}
-                    cy={184 - (day.value / max) * 150}
-                    r={activeDay.value === index ? 4 : day.value ? 3 : 2}
+                    cx={48 + (index * plotWidth()) / intervals()}
+                    cy={184 - (day.value / max()) * 150}
+                    r={activeDay() === index ? 4 : day.value ? 3 : 2}
                     fill="var(--dashboard-accent)"
                     pointer-events="none"
                   />
                   <circle
                     class="dashboard-chart-point"
-                    cx={48 + (index * plotWidth) / intervals}
-                    cy={184 - (day.value / max) * 150}
+                    cx={48 + (index * plotWidth()) / intervals()}
+                    cy={184 - (day.value / max()) * 150}
                     r="9"
                     fill="transparent"
                     tabindex={0}
                     role="img"
-                    aria-label={`${day.day}: ${money(day.value)} · ${day.sales} sales${showCost.value ? ` · Estimated cost: ${day.cost === null ? '—' : money(day.cost)}` : ''} · Estimated profit: ${day.cost === null ? '—' : money(day.costedValue - day.cost)}`}
-                    onPointerEnter$={() => {
-                      activeDay.value = index;
+                    aria-label={`${day.day}: ${money(day.value)} · ${day.sales} sales${showCost() ? ` · Estimated cost: ${day.cost === null ? '—' : money(day.cost)}` : ''} · Estimated profit: ${day.cost === null ? '—' : money(day.costedValue - day.cost)}`}
+                    onPointerEnter={() => {
+                      setActiveDay(index);
                     }}
-                    onPointerLeave$={() => {
-                      activeDay.value = undefined;
+                    onPointerLeave={() => {
+                      setActiveDay(undefined);
                     }}
-                    onFocus$={() => {
-                      activeDay.value = index;
+                    onFocus={() => {
+                      setActiveDay(index);
                     }}
-                    onBlur$={() => {
-                      activeDay.value = undefined;
+                    onBlur={() => {
+                      setActiveDay(undefined);
                     }}
-                    onClick$={() => {
-                      activeDay.value = index;
+                    onClick={() => {
+                      setActiveDay(index);
                     }}
-                    onKeyDown$={(event) => {
-                      if (event.key === 'Escape') activeDay.value = undefined;
+                    onKeyDown={(event) => {
+                      if (event.key === 'Escape') setActiveDay(undefined);
                     }}
                   />
                 </g>
               ))}
-              {[...new Set([0, Math.floor((periodDays - 1) / 2), periodDays - 1])].map((index) => (
+              {[...new Set([0, Math.floor((periodDays() - 1) / 2), periodDays() - 1])].map((index) => (
                 <text
-                  key={index}
-                  x={48 + (index * plotWidth) / intervals}
+                  x={48 + (index * plotWidth()) / intervals()}
                   y="213"
-                  text-anchor={index === 0 ? 'start' : index === periodDays - 1 ? 'end' : 'middle'}
+                  text-anchor={index === 0 ? 'start' : index === periodDays() - 1 ? 'end' : 'middle'}
                 >
-                  {summary.trend[index].day.slice(5)}
+                  {summary().trend[index].day.slice(5)}
                 </text>
               ))}
-              {highlighted && (
-                <g
-                  class="dashboard-chart-tooltip"
-                  transform={`translate(${tooltipX} ${tooltipY})`}
-                  pointer-events="none"
-                  aria-hidden="true"
-                >
-                  <rect width="224" height={showCost.value ? 112 : 90} rx="8" />
-                  <text x="12" y="20">
-                    {highlighted.day}
-                  </text>
-                  <text x="12" y="40" class="dashboard-tooltip-value">
-                    Sales: {money(highlighted.value)}
-                  </text>
-                  {showCost.value && (
-                    <text x="12" y="58">
-                      Cost: {highlighted.cost === null ? '—' : money(highlighted.cost)}
+              <Show when={highlighted()} keyed>
+                {(day) => (
+                  <g
+                    class="dashboard-chart-tooltip"
+                    transform={`translate(${tooltipX()} ${tooltipY()})`}
+                    pointer-events="none"
+                    aria-hidden="true"
+                  >
+                    <rect width="224" height={showCost() ? 112 : 90} rx="8" />
+                    <text x="12" y="20">
+                      {day.day}
                     </text>
-                  )}
-                  <text x="12" y={showCost.value ? 78 : 58}>
-                    Est. profit:{' '}
-                    {highlighted.cost === null ? '—' : money(highlighted.costedValue - highlighted.cost)}
-                  </text>
-                  <text x="12" y={showCost.value ? 98 : 78}>
-                    {highlighted.sales} sales
-                  </text>
-                </g>
-              )}
+                    <text x="12" y="40" class="dashboard-tooltip-value">
+                      Sales: {money(day.value)}
+                    </text>
+                    {showCost() && (
+                      <text x="12" y="58">
+                        Cost: {day.cost === null ? '—' : money(day.cost)}
+                      </text>
+                    )}
+                    <text x="12" y={showCost() ? 78 : 58}>
+                      Est. profit: {day.cost === null ? '—' : money(day.costedValue - day.cost)}
+                    </text>
+                    <text x="12" y={showCost() ? 98 : 78}>
+                      {day.sales} sales
+                    </text>
+                  </g>
+                )}
+              </Show>
             </svg>
-            {showCost.value && (
+            {showCost() && (
               <p class="muted">
                 Estimated product cost uses quantity-weighted purchase-lot averages recorded by each sale
                 date; excludes delivery and operating expenses.
-                {uncostedUnits > 0 && ' Estimates include only items with a matching purchase cost.'}
+                {uncostedUnits() > 0 && ' Estimates include only items with a matching purchase cost.'}
               </p>
             )}
-            {!summary.sales && <p class="muted">No sales in this period.</p>}
+            {!summary().sales && <p class="muted">No sales in this period.</p>}
           </Panel>
           <Panel class="stack dashboard-summary-card">
             <div>
@@ -442,16 +460,22 @@ export const Dashboard = component$<{ data: WorkbookData }>(({ data }) => {
               <svg
                 viewBox="0 0 160 160"
                 role="img"
-                aria-label={`${summary.orders} orders: ${summary.statuses.map((entry) => `${entry.count} ${entry.status}`).join(', ')}`}
+                aria-label={`${summary().orders} orders: ${summary()
+                  .statuses.map((entry) => `${entry.count} ${entry.status}`)
+                  .join(', ')}`}
               >
                 <circle cx="80" cy="80" r="60" fill="none" stroke="var(--line)" stroke-width="18" />
-                {summary.statuses.map((entry, index) => {
-                  const percent = summary.orders ? (entry.count / summary.orders) * 100 : 0;
-                  const start = offset;
-                  offset += percent;
+                {summary().statuses.map((entry, index) => {
+                  const percent = summary().orders ? (entry.count / summary().orders) * 100 : 0;
+                  const start = summary().orders
+                    ? (summary()
+                        .statuses.slice(0, index)
+                        .reduce((sum, status) => sum + status.count, 0) *
+                        100) /
+                      summary().orders
+                    : 0;
                   return (
                     <circle
-                      key={entry.status}
                       cx="80"
                       cy="80"
                       r="60"
@@ -468,15 +492,15 @@ export const Dashboard = component$<{ data: WorkbookData }>(({ data }) => {
                   );
                 })}
                 <text x="80" y="80" text-anchor="middle" class="dashboard-donut-total">
-                  {summary.orders}
+                  {summary().orders}
                 </text>
                 <text x="80" y="101" text-anchor="middle">
                   orders
                 </text>
               </svg>
               <ul class="dashboard-legend">
-                {summary.statuses.map((entry, index) => (
-                  <li key={entry.status}>
+                {summary().statuses.map((entry, index) => (
+                  <li>
                     <span class="dashboard-dot" style={{ background: colors[index] }} />
                     <span>{entry.status}</span>
                     <strong>{entry.count}</strong>
@@ -490,24 +514,30 @@ export const Dashboard = component$<{ data: WorkbookData }>(({ data }) => {
               <h2>Top products</h2>
               <p class="muted">Units sold on confirmed orders · before returns</p>
             </div>
-            {summary.products.length ? (
-              <ol class="dashboard-bars" tabIndex={0} aria-label="Top products by units sold">
-                {summary.products.map((product) => (
-                  <li key={product.id}>
-                    <div class="panel-heading">
-                      <ProductLabel
-                        name={product.name}
-                        image={data.Products.find((row) => row.id === product.id)?.image}
-                      >
-                        {product.name}
-                      </ProductLabel>
-                      <strong>{product.units} units</strong>
-                    </div>
-                    <div class="dashboard-bar-track">
-                      <div style={{ width: `${(product.units / topUnits) * 100}%` }} />
-                    </div>
-                  </li>
-                ))}
+            {summary().products.length ? (
+              <ol class="dashboard-bars paged-viewport" tabindex={0} aria-label="Top products by units sold">
+                <PagedRows list rows={summary().products} estimate={56}>
+                  {(page) => (
+                    <>
+                      {page().map((product) => (
+                        <li>
+                          <div class="panel-heading">
+                            <ProductLabel
+                              name={product.name}
+                              image={props.data.Products.find((row) => row.id === product.id)?.image}
+                            >
+                              {product.name}
+                            </ProductLabel>
+                            <strong>{product.units} units</strong>
+                          </div>
+                          <div class="dashboard-bar-track">
+                            <div style={{ width: `${(product.units / topUnits()) * 100}%` }} />
+                          </div>
+                        </li>
+                      ))}
+                    </>
+                  )}
+                </PagedRows>
               </ol>
             ) : (
               <p class="empty">Products will appear when orders are confirmed.</p>
@@ -521,52 +551,64 @@ export const Dashboard = component$<{ data: WorkbookData }>(({ data }) => {
               </div>
               <Button
                 class="secondary compact"
-                onClick$={() => navigate$('/inventory')}
+                onClick={() => navigate('/inventory')}
                 icon="arrow-right"
                 label="View stock"
               />
             </div>
             <dl class="dashboard-stock">
               {(['available', 'reserved', 'unavailable', 'onHand'] as const).map((key, index) => (
-                <div key={key}>
+                <div>
                   <dt>{['Available', 'Reserved', 'Unavailable', 'On hand'][index]}</dt>
-                  <dd class={summary.stock[key] < 0 ? 'negative' : undefined}>
-                    {summary.stock[key].toLocaleString(numberFormat)}
+                  <dd class={summary().stock[key] < 0 ? 'negative' : undefined}>
+                    {summary().stock[key].toLocaleString(numberFormat())}
                   </dd>
                 </div>
               ))}
             </dl>
             <div class="stock-board-heading">
               <h3>
-                Low stock <span>{summary.lowStock.length}</span>
+                Low stock <span>{summary().lowStock.length}</span>
               </h3>
               <small>5 or fewer units available</small>
             </div>
-            {summary.lowStock.length ? (
-              <ul class="dashboard-low-stock">
-                {summary.lowStock.slice(0, showAllStock.value ? undefined : 18).map((item) => (
-                  <li
-                    key={item.variantId}
-                    data-level={item.available <= 0 ? 'empty' : item.available <= 2 ? 'critical' : 'low'}
-                  >
-                    <span class="stock-tile-sku">{item.sku}</span>
-                    <strong class="stock-tile-quantity">
-                      {item.available.toLocaleString(numberFormat)}{' '}
-                      <small>{item.available <= 0 ? 'avail.' : 'left'}</small>
-                    </strong>
-                    <span class="stock-tile-name">{item.name}</span>
-                  </li>
-                ))}
+            {summary().lowStock.length ? (
+              <ul class="dashboard-low-stock paged-viewport">
+                <PagedRows
+                  list
+                  rows={showAllStock() ? summary().lowStock : summary().lowStock.slice(0, 18)}
+                  estimate={28}
+                  resetKey={String(showAllStock())}
+                >
+                  {(page) => (
+                    <>
+                      {page().map((item) => (
+                        <li
+                          data-level={
+                            item.available <= 0 ? 'empty' : item.available <= 2 ? 'critical' : 'low'
+                          }
+                        >
+                          <span class="stock-tile-sku">{item.sku}</span>
+                          <strong class="stock-tile-quantity">
+                            {item.available.toLocaleString(numberFormat())}{' '}
+                            <small>{item.available <= 0 ? 'avail.' : 'left'}</small>
+                          </strong>
+                          <span class="stock-tile-name">{item.name}</span>
+                        </li>
+                      ))}
+                    </>
+                  )}
+                </PagedRows>
               </ul>
             ) : (
               <p class="muted">All active variants have more than 5 units available.</p>
             )}
-            {summary.lowStock.length > 18 && (
+            {summary().lowStock.length > 18 && (
               <Button
                 class="secondary compact stock-board-toggle"
-                onClick$={() => (showAllStock.value = !showAllStock.value)}
+                onClick={() => setShowAllStock(!showAllStock())}
               >
-                {showAllStock.value ? 'Show fewer' : `Show all ${summary.lowStock.length} variants`}
+                {showAllStock() ? 'Show fewer' : `Show all ${summary().lowStock.length} variants`}
               </Button>
             )}
           </Panel>
@@ -574,4 +616,4 @@ export const Dashboard = component$<{ data: WorkbookData }>(({ data }) => {
       </div>
     </section>
   );
-});
+}

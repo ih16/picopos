@@ -1,14 +1,9 @@
-import {
-  $,
-  useComputed$,
-  useContextProvider,
-  useSignal,
-  useTask$,
-  useVisibleTask$,
-  type Signal,
-} from '@builder.io/qwik';
+import { createEventListener } from '@solid-primitives/event-listener';
+import { createEffect, createMemo, createSignal, flush, onSettled, type Setter } from 'solid-js';
+
 import { demoWorkbook } from '../domain/demo';
 import { projectLocalWorkbook, queueLocalChanges, type LocalWorkbook } from '../domain/outbox';
+import { DEFAULT_SYNC_INTERVAL_SECONDS, syncIntervalSeconds } from '../domain/sync-timing';
 import {
   applyChanges,
   getInventory,
@@ -18,15 +13,6 @@ import {
   type Workbook,
   type WorkbookData,
 } from '../domain/workbook';
-import { ReconnectContext } from '../features/auth/reconnect-context';
-import { DEFAULT_SYNC_INTERVAL_SECONDS, syncIntervalSeconds } from '../domain/sync-timing';
-import {
-  readSyncAttempt,
-  readSyncInterval,
-  storeSyncTiming,
-  SYNC_INTERVAL_KEY,
-  syncAttemptKey,
-} from '../infrastructure/storage/sync-timing';
 import {
   clearAccessToken,
   getAccessSession,
@@ -46,9 +32,16 @@ import {
   updateLocalWorkbook,
   watchLocalWorkbook,
 } from '../infrastructure/storage/local-workbook';
-import { syncWorkbookQueue } from './sync-workbook-queue';
+import {
+  readSyncAttempt,
+  readSyncInterval,
+  storeSyncTiming,
+  SYNC_INTERVAL_KEY,
+  syncAttemptKey,
+} from '../infrastructure/storage/sync-timing';
 import { addScreenTab } from './navigation/screen-route';
 import type { useWorkspaceNavigation } from './navigation/use-workspace-navigation';
+import { syncWorkbookQueue } from './sync-workbook-queue';
 
 const SAVED_WORKBOOK = 'piecom.workbook';
 const DEMO_SESSION = 'piecom.demo-session';
@@ -66,78 +59,85 @@ function syncLock(id: string) {
   return `piecom-workbook-sync:${id}`;
 }
 
-export function useWorkbook(error: Signal<string>, navigation: ReturnType<typeof useWorkspaceNavigation>) {
-  const { reset, route, openPages } = navigation;
-  const saved = useSignal<SpreadsheetSelection>();
-  const setupSelection = useSignal<SpreadsheetSelection>();
-  const local = useSignal<LocalWorkbook>();
-  const demo = useSignal<Workbook>();
-  const workbook = useComputed$(() => demo.value ?? (local.value && projectLocalWorkbook(local.value)));
-  const busy = useSignal(false);
-  const syncing = useSignal(false);
-  const checkingSavedSession = useSignal(true);
-  const syncError = useSignal('');
-  const authError = useSignal('');
-  const expired = useSignal(false);
-  const online = useSignal(true);
-  const syncInterval = useSignal(DEFAULT_SYNC_INTERVAL_SECONDS);
-  const nextSyncAt = useSignal<number>();
-  const lastAttempt = useSignal(0);
-  const needsReconnect = useComputed$(() => online.value && expired.value && !demo.value && !syncing.value);
-  const reconnectDismissed = useSignal(false);
-  useTask$(({ track }) => {
-    if (!track(() => needsReconnect.value)) reconnectDismissed.value = false;
+export function useWorkbook(setError: Setter<string>, navigation: ReturnType<typeof useWorkspaceNavigation>) {
+  const { reset, route, setOpenPages } = navigation;
+  const [saved, setSaved] = createSignal<SpreadsheetSelection>();
+  const [setupSelection, setSetupSelection] = createSignal<SpreadsheetSelection>();
+  const [local, setLocal] = createSignal<LocalWorkbook>();
+  const [demo, setDemo] = createSignal<Workbook>();
+  const workbook = createMemo(() => {
+    const snapshot = local();
+    return demo() ?? (snapshot && projectLocalWorkbook(snapshot));
   });
-  const connectionBusy = useComputed$(() => busy.value || syncing.value);
-  const issues = useComputed$(() =>
-    workbook.value ? getInventoryIssues(workbook.value.data, getInventory(workbook.value.data)) : [],
+  const [busy, setBusy] = createSignal(false);
+  const [syncing, setSyncing] = createSignal(false);
+  const [checkingSavedSession, setCheckingSavedSession] = createSignal(true);
+  const [syncError, setSyncError] = createSignal('');
+  const [authError, setAuthError] = createSignal('');
+  const [expired, setExpired] = createSignal(false);
+  const [online, setOnline] = createSignal(true);
+  const [syncInterval, setSyncInterval] = createSignal(DEFAULT_SYNC_INTERVAL_SECONDS);
+  const [nextSyncAt, setNextSyncAt] = createSignal<number>();
+  const [lastAttempt, setLastAttempt] = createSignal(0);
+  const needsReconnect = createMemo(() => online() && expired() && !demo() && !syncing());
+  const [reconnectDismissed, setReconnectDismissed] = createSignal(false);
+  createEffect(
+    () => needsReconnect(),
+    (reconnect) => {
+      if (!reconnect) setReconnectDismissed(false);
+    },
   );
-
-  const showLocal = $((state: LocalWorkbook) => {
-    const shown = local.value;
-    if (
-      saved.value?.id === state.base.id &&
-      (shown?.base.id !== state.base.id || (shown.revision ?? 0) <= (state.revision ?? 0))
-    ) {
-      local.value = state;
-    }
+  const connectionBusy = createMemo(() => busy() || syncing());
+  const issues = createMemo(() => {
+    const data = workbook()?.data;
+    return data ? getInventoryIssues(data, getInventory(data)) : [];
   });
 
-  const reportSyncFailure = $((cause: unknown, reconnecting: boolean) => {
+  const showLocal = (state: LocalWorkbook) => {
+    if (saved()?.id !== state.base.id) return;
+    setLocal((shown) =>
+      shown?.base.id === state.base.id && (shown.revision ?? 0) > (state.revision ?? 0) ? shown : state,
+    );
+  };
+
+  const reportSyncFailure = (cause: unknown, reconnecting: boolean) => {
     if (cause instanceof SheetsError && cause.status === 401) {
-      expired.value = true;
-      syncError.value = '';
-      authError.value = local.value ? '' : cause.message;
+      setExpired(true);
+      setSyncError('');
+      setAuthError(local() ? '' : cause.message);
       return;
     }
     const message = cause instanceof Error ? cause.message : 'Something went wrong. Try again.';
-    if (!local.value || reconnecting) authError.value = message;
-    else syncError.value = message;
-    if (!local.value && saved.value) expired.value = true;
-  });
+    if (!local() || reconnecting) setAuthError(message);
+    else setSyncError(message);
+    if (!local() && saved()) setExpired(true);
+  };
 
-  const refresh = $(async (mode?: 'manual' | 'reconnect') => {
-    const id = saved.value?.id;
+  // Commands can follow another write in the same tick (reauthorization, reconnect, or a demo edit).
+  // Commit pending signals before checking the workbook identity and operation guards.
+  const refresh = async (mode?: 'manual' | 'reconnect') => {
+    flush();
+    const id = saved()?.id;
     const reconnecting = mode === 'reconnect';
-    if (!id || demo.value || busy.value || syncing.value || !online.value || (expired.value && !mode)) return;
-    const intervalMs = syncInterval.value * 1_000;
-    const localSyncAt = local.value?.lastSyncedAt ?? 0;
-    if (!mode && local.value && Date.now() < Math.max(lastAttempt.value, localSyncAt) + intervalMs) return;
-    syncing.value = true;
-    if (mode) authError.value = '';
+    if (!id || demo() || busy() || syncing() || !online() || (expired() && !mode)) return;
+    const intervalMs = syncInterval() * 1_000;
+    const localSyncAt = local()?.lastSyncedAt ?? 0;
+    if (!mode && local() && Date.now() < Math.max(lastAttempt(), localSyncAt) + intervalMs) return;
+    setSyncing(true);
+    if (mode) setAuthError('');
     try {
       await getWorkbookLocks().request(syncLock(id), { ifAvailable: !mode }, async (lock) => {
         if (!lock) return;
         let before = await readLocalWorkbook(id);
-        const previousAttempt = Math.max(readSyncAttempt(id), lastAttempt.value);
+        const previousAttempt = Math.max(readSyncAttempt(id), lastAttempt());
         const startedAt = Date.now();
-        lastAttempt.value = previousAttempt;
+        setLastAttempt(previousAttempt);
         if (
           !mode &&
           before &&
-          startedAt < Math.max(previousAttempt, before.lastSyncedAt ?? 0) + syncInterval.value * 1_000
+          startedAt < Math.max(previousAttempt, before.lastSyncedAt ?? 0) + syncInterval() * 1_000
         ) {
-          await showLocal(before);
+          showLocal(before);
           return;
         }
 
@@ -145,10 +145,10 @@ export function useWorkbook(error: Signal<string>, navigation: ReturnType<typeof
         // have reconnected while this sync was waiting.
         let credential = await getSyncAccessSession(id);
         if (!credential) {
-          expired.value = true;
+          setExpired(true);
           return;
         }
-        lastAttempt.value = startedAt;
+        setLastAttempt(startedAt);
         storeSyncTiming(syncAttemptKey(id), startedAt);
 
         for (let attempt = 0; ; attempt++) {
@@ -164,11 +164,11 @@ export function useWorkbook(error: Signal<string>, navigation: ReturnType<typeof
           } catch (cause) {
             if (!(cause instanceof SheetsError) || ![401, 403, 404].includes(cause.status ?? 0)) throw cause;
             if (await invalidateAccessSession(usedSession)) {
-              if (cause.status !== 401 && local.value) expired.value = true;
+              if (cause.status !== 401 && local()) setExpired(true);
               throw cause;
             }
             const renewed = await getSyncAccessSession(id);
-            expired.value = !renewed;
+            setExpired(!renewed);
             if (!renewed || renewed.value === usedSession.value || attempt > 0) return;
             // Re-read the outbox and Sheets with the renewed credential. Never replay a raw write.
             credential = renewed;
@@ -176,113 +176,105 @@ export function useWorkbook(error: Signal<string>, navigation: ReturnType<typeof
           }
         }
         if (reconnecting) await rememberAccessToken(id, credential);
-        expired.value = false;
-        syncError.value = '';
-        authError.value = '';
+        setExpired(false);
+        setSyncError('');
+        setAuthError('');
       });
     } catch (cause) {
-      await reportSyncFailure(cause, reconnecting || expired.value);
+      await reportSyncFailure(cause, reconnecting || expired());
     } finally {
-      syncing.value = false;
+      setSyncing(false);
     }
-  });
+  };
 
-  const reconnect = $(() => refresh('reconnect'));
-  const syncNow = $(() => refresh('manual'));
-  useContextProvider(ReconnectContext, {
+  const reconnect = () => refresh('reconnect');
+  const syncNow = () => refresh('manual');
+  const reconnectContext = {
     saved,
     expired: needsReconnect,
     dismissed: reconnectDismissed,
+    dismiss: () => setReconnectDismissed(true),
     busy: connectionBusy,
     error: authError,
-    onReconnect$: reconnect,
-  });
+    onReconnect: reconnect,
+  };
 
-  const openSaved = $(async (id: string) => {
+  const openSaved = async (id: string) => {
     try {
       const cached = await readLocalWorkbook(id);
-      lastAttempt.value = readSyncAttempt(id);
-      if (cached) await showLocal(cached);
+      setLastAttempt(readSyncAttempt(id));
+      if (cached) showLocal(cached);
       const authorized = await restoreAccessToken(id, true);
-      if (saved.value?.id !== id || demo.value) return;
-      expired.value = !authorized;
+      if (saved()?.id !== id || demo()) return;
+      setExpired(!authorized);
       if (authorized) await refresh();
     } catch (cause) {
       await reportSyncFailure(cause, false);
-      if (!local.value) expired.value = true;
+      if (!local()) setExpired(true);
     } finally {
-      checkingSavedSession.value = false;
+      setCheckingSavedSession(false);
     }
+  };
+
+  onSettled(() => {
+    setOnline(navigator.onLine);
+    setSyncInterval(readSyncInterval());
+    let restoring = false;
+    let restoringDemo = false;
+    try {
+      if (sessionStorage.getItem(DEMO_SESSION) === 'true') {
+        restoringDemo = true;
+        setDemo({ id: 'demo', title: 'Fieldwork Supply', data: demoWorkbook() });
+      }
+    } catch {
+      /* Demo mode is optional when session storage is unavailable. */
+    }
+    try {
+      const value: unknown = JSON.parse(localStorage.getItem(SAVED_WORKBOOK) || 'null');
+      if (
+        !restoringDemo &&
+        value &&
+        typeof value === 'object' &&
+        'id' in value &&
+        'name' in value &&
+        typeof value.id === 'string' &&
+        typeof value.name === 'string'
+      ) {
+        restoring = true;
+        setSaved({ id: value.id, name: value.name });
+        void openSaved(value.id);
+      }
+    } catch {
+      // An invalid or unavailable local setting can be replaced using the picker.
+    }
+    if (!restoring) setCheckingSavedSession(false);
   });
+  const refreshVisible = () => {
+    if (document.visibilityState === 'visible') void refresh();
+  };
+  const networkChanged = () => {
+    setOnline(navigator.onLine);
+    if (navigator.onLine) refreshVisible();
+  };
+  const timingChanged = ({ key }: StorageEvent) => {
+    if (key === SYNC_INTERVAL_KEY || key === null) setSyncInterval(readSyncInterval());
+    const id = saved()?.id;
+    if (id && (key === syncAttemptKey(id) || key === null)) setLastAttempt(readSyncAttempt(id));
+  };
+  createEventListener(document, 'visibilitychange', refreshVisible);
+  createEventListener(window, 'focus', refreshVisible);
+  createEventListener(window, ['online', 'offline'], networkChanged);
+  createEventListener(window, 'storage', timingChanged);
 
-  useVisibleTask$(
-    ({ cleanup }) => {
-      online.value = navigator.onLine;
-      syncInterval.value = readSyncInterval();
-      let restoring = false;
-      try {
-        if (sessionStorage.getItem(DEMO_SESSION) === 'true') {
-          demo.value = { id: 'demo', title: 'Fieldwork Supply', data: demoWorkbook() };
-        }
-      } catch {
-        /* Demo mode is optional when session storage is unavailable. */
-      }
-      try {
-        const value: unknown = JSON.parse(localStorage.getItem(SAVED_WORKBOOK) || 'null');
-        if (
-          !demo.value &&
-          value &&
-          typeof value === 'object' &&
-          'id' in value &&
-          'name' in value &&
-          typeof value.id === 'string' &&
-          typeof value.name === 'string'
-        ) {
-          restoring = true;
-          saved.value = { id: value.id, name: value.name };
-          void openSaved(value.id);
-        }
-      } catch {
-        // An invalid or unavailable local setting can be replaced using the picker.
-      }
-      if (!restoring) checkingSavedSession.value = false;
-      const refreshVisible = () => {
-        if (document.visibilityState === 'visible') void refresh();
-      };
-      const networkChanged = () => {
-        online.value = navigator.onLine;
-        if (online.value) refreshVisible();
-      };
-      document.addEventListener('visibilitychange', refreshVisible);
-      window.addEventListener('focus', refreshVisible);
-      window.addEventListener('online', networkChanged);
-      window.addEventListener('offline', networkChanged);
-      const timingChanged = ({ key }: StorageEvent) => {
-        if (key === SYNC_INTERVAL_KEY || key === null) syncInterval.value = readSyncInterval();
-        const id = saved.value?.id;
-        if (id && (key === syncAttemptKey(id) || key === null)) lastAttempt.value = readSyncAttempt(id);
-      };
-      window.addEventListener('storage', timingChanged);
-      cleanup(() => {
-        document.removeEventListener('visibilitychange', refreshVisible);
-        window.removeEventListener('focus', refreshVisible);
-        window.removeEventListener('online', networkChanged);
-        window.removeEventListener('offline', networkChanged);
-        window.removeEventListener('storage', timingChanged);
-      });
-    },
-    { strategy: 'document-ready' },
-  );
-
-  useVisibleTask$(
-    ({ track, cleanup }) => {
-      const id = track(() => saved.value?.id);
+  createEffect(
+    () => saved()?.id,
+    (id) => {
       if (!id) return;
       const stopSession = watchAccessToken(id, (authorized) => {
-        if (saved.value?.id !== id || demo.value) return;
-        expired.value = !authorized;
+        if (saved()?.id !== id || demo()) return;
+        setExpired(!authorized);
         if (authorized) {
-          authError.value = '';
+          setAuthError('');
           void refresh();
         }
       });
@@ -290,209 +282,214 @@ export function useWorkbook(error: Signal<string>, navigation: ReturnType<typeof
       const stop = watchLocalWorkbook(id, () => {
         void readLocalWorkbook(id)
           .then((state) => {
-            if (!watching || saved.value?.id !== id) return;
+            if (!watching || saved()?.id !== id) return;
             if (state) void showLocal(state);
-            else if (local.value?.base.id === id) {
+            else if (local()?.base.id === id) {
               clearAccessToken();
-              local.value = undefined;
-              saved.value = undefined;
+              setLocal(undefined);
+              setSaved(undefined);
             }
           })
           .catch((cause: unknown) => {
             if (watching) void reportSyncFailure(cause, false);
           });
       });
-      cleanup(() => {
+      return () => {
         watching = false;
         stop();
         stopSession();
-      });
+      };
     },
-    { strategy: 'document-ready' },
   );
 
-  useVisibleTask$(
-    ({ track, cleanup }) => {
-      const lastSync = track(() => local.value?.lastSyncedAt);
-      const attempt = track(() => lastAttempt.value);
-      const interval = track(() => syncInterval.value);
-      const ready = track(
-        () => online.value && !expired.value && !busy.value && !syncing.value && !demo.value,
-      );
+  createEffect(
+    () =>
+      [
+        local()?.lastSyncedAt,
+        lastAttempt(),
+        syncInterval(),
+        online() && !expired() && !busy() && !syncing() && !demo(),
+      ] as const,
+    ([lastSync, attempt, interval, ready]) => {
       if (lastSync === undefined || !ready) return;
       const due = Math.max(lastSync, attempt) + interval * 1_000;
       const now = Date.now();
       const delay = Math.max(1_000, due - now);
-      nextSyncAt.value = now + delay;
+      setNextSyncAt(now + delay);
       const timer = window.setTimeout(() => {
-        nextSyncAt.value = undefined;
+        setNextSyncAt(undefined);
         if (document.visibilityState === 'visible') void refresh();
       }, delay);
-      cleanup(() => {
+      return () => {
         window.clearTimeout(timer);
-        nextSyncAt.value = undefined;
-      });
+        setNextSyncAt(undefined);
+      };
     },
-    { strategy: 'document-ready' },
   );
 
-  const changeSyncInterval = $((value: string) => {
-    syncInterval.value = syncIntervalSeconds(value);
-    storeSyncTiming(SYNC_INTERVAL_KEY, syncInterval.value);
-  });
+  const changeSyncInterval = (value: string) => {
+    const seconds = syncIntervalSeconds(value);
+    setSyncInterval(seconds);
+    storeSyncTiming(SYNC_INTERVAL_KEY, seconds);
+  };
 
-  const connect = $(
-    async (selection: SpreadsheetSelection, setup?: { settings: RowChange[]; interval: string }) => {
-      if (busy.value || syncing.value) return;
-      const session = getAccessSession();
-      if (!session) {
-        if (setup)
-          authError.value = 'Google authorization expired. Cancel setup and select the workbook again.';
-        else expired.value = true;
-        return;
-      }
-      busy.value = true;
-      authError.value = '';
-      try {
-        await getWorkbookLocks().request(syncLock(selection.id), async () => {
-          const selected = await initializeWorkbook(session.value, selection.id, setup?.settings);
-          if (!selected) {
-            setupSelection.value = selection;
-            return;
-          }
-          const connection = { id: selected.id, name: selected.title };
-          const state = await updateLocalWorkbook(selected.id, (previous) => ({
-            ...previous,
-            version: 1,
-            base: selected,
-            pending: previous?.pending ?? [],
-            lastSyncedAt: Date.now(),
-          }));
-          await rememberAccessToken(selected.id, session);
-          if ((saved.value && saved.value.id !== selected.id) || demo.value) {
-            await reset();
-          }
-          saved.value = connection;
-          lastAttempt.value = state.lastSyncedAt ?? 0;
-          demo.value = undefined;
-          try {
-            sessionStorage.removeItem(DEMO_SESSION);
-          } catch {
-            /* Storage may be unavailable. */
-          }
-          saveSelection(connection);
-          await showLocal(state);
-          expired.value = false;
-          syncError.value = '';
-          error.value = '';
-          if (setup) await changeSyncInterval(setup.interval);
-          setupSelection.value = undefined;
-          void navigator.storage.persist?.().catch(() => {});
-        });
-      } catch (cause) {
-        if (cause instanceof SheetsError && cause.status === 401) {
-          if (!(await invalidateAccessSession(session))) return;
+  const connect = async (
+    selection: SpreadsheetSelection,
+    setup?: { settings: RowChange[]; interval: string },
+  ) => {
+    flush();
+    if (busy() || syncing()) return;
+    const session = getAccessSession();
+    if (!session) {
+      if (setup) setAuthError('Google authorization expired. Cancel setup and select the workbook again.');
+      else setExpired(true);
+      return;
+    }
+    setBusy(true);
+    setAuthError('');
+    try {
+      await getWorkbookLocks().request(syncLock(selection.id), async () => {
+        const selected = await initializeWorkbook(session.value, selection.id, setup?.settings);
+        if (!selected) {
+          setSetupSelection(selection);
+          return;
         }
-        if (setup)
-          authError.value = cause instanceof Error ? cause.message : 'Could not save workbook setup.';
-        else await reportSyncFailure(cause, true);
-      } finally {
-        busy.value = false;
+        const connection = { id: selected.id, name: selected.title };
+        const state = await updateLocalWorkbook(selected.id, (previous) => ({
+          ...previous,
+          version: 1,
+          base: selected,
+          pending: previous?.pending ?? [],
+          lastSyncedAt: Date.now(),
+        }));
+        await rememberAccessToken(selected.id, session);
+        if ((saved() && saved()?.id !== selected.id) || demo()) {
+          await reset();
+        }
+        setSaved(connection);
+        setLastAttempt(state.lastSyncedAt ?? 0);
+        setDemo(undefined);
+        try {
+          sessionStorage.removeItem(DEMO_SESSION);
+        } catch {
+          /* Storage may be unavailable. */
+        }
+        saveSelection(connection);
+        flush();
+        showLocal(state);
+        setExpired(false);
+        setSyncError('');
+        setError('');
+        if (setup) await changeSyncInterval(setup.interval);
+        setSetupSelection(undefined);
+        void navigator.storage.persist?.().catch(() => {});
+      });
+    } catch (cause) {
+      if (cause instanceof SheetsError && cause.status === 401) {
+        if (!(await invalidateAccessSession(session))) return;
       }
-    },
-  );
+      if (setup) setAuthError(cause instanceof Error ? cause.message : 'Could not save workbook setup.');
+      else await reportSyncFailure(cause, true);
+    } finally {
+      setBusy(false);
+    }
+  };
 
-  const openDemo = $(() => {
+  const openDemo = () => {
     try {
       sessionStorage.setItem(DEMO_SESSION, 'true');
     } catch {
       /* Demo still works in memory. */
     }
-    demo.value = { id: 'demo', title: 'Fieldwork Supply', data: demoWorkbook() };
-    error.value = '';
-    openPages.value = addScreenTab([], route.value);
-  });
+    setDemo({ id: 'demo', title: 'Fieldwork Supply', data: demoWorkbook() });
+    setError('');
+    setOpenPages(addScreenTab([], route()));
+  };
 
-  const disconnect = $(async () => {
-    const id = saved.value?.id;
-    if (!id || busy.value || syncing.value) return;
-    busy.value = true;
-    authError.value = '';
+  const disconnect = async () => {
+    flush();
+    const id = saved()?.id;
+    if (!id || busy() || syncing()) return;
+    setBusy(true);
+    setAuthError('');
     try {
       await getWorkbookLocks().request(syncLock(id), async () => {
         await removeLocalWorkbook(id);
         clearAccessToken();
         saveSelection();
-        local.value = undefined;
-        saved.value = undefined;
-        expired.value = false;
-        error.value = '';
-        syncError.value = '';
+        setLocal(undefined);
+        setSaved(undefined);
+        setExpired(false);
+        setError('');
+        setSyncError('');
       });
     } catch (cause) {
-      authError.value = cause instanceof Error ? cause.message : 'Could not disconnect this workbook.';
+      setAuthError(cause instanceof Error ? cause.message : 'Could not disconnect this workbook.');
     } finally {
-      busy.value = false;
+      setBusy(false);
     }
-  });
+  };
 
-  const discardChange = $(async (id: string) => {
-    const workbookId = local.value?.base.id;
-    if (!workbookId || busy.value || syncing.value) return;
-    busy.value = true;
-    error.value = '';
+  const discardChange = async (id: string) => {
+    flush();
+    const workbookId = local()?.base.id;
+    if (!workbookId || busy() || syncing()) return;
+    setBusy(true);
+    setError('');
     try {
       await getWorkbookLocks().request(syncLock(workbookId), async () => {
         const next = await updateLocalWorkbook(workbookId, (current) => {
           if (!current) throw new Error('Reconnect the workbook before changing the sync queue.');
           return { ...current, pending: current.pending.filter((item) => item.id !== id || !item.issue) };
         });
-        await showLocal(next);
+        showLocal(next);
       });
     } catch (cause) {
-      error.value = cause instanceof Error ? cause.message : 'Could not discard the local change.';
+      setError(cause instanceof Error ? cause.message : 'Could not discard the local change.');
     } finally {
-      busy.value = false;
+      setBusy(false);
     }
-  });
+  };
 
-  const commit = $(async (changes: RowChange[], editBase?: WorkbookData | RowChange[]) => {
-    const current = workbook.value;
-    if (!current || busy.value) return false;
-    busy.value = true;
-    error.value = '';
+  const commit = async (changes: RowChange[], editBase?: WorkbookData | RowChange[]) => {
+    flush();
+    const current = workbook();
+    if (!current || busy()) return false;
+    setBusy(true);
+    setError('');
     try {
-      if (demo.value) {
+      if (demo()) {
         validateChanges(current.data, changes);
-        demo.value = { ...current, data: applyChanges(current.data, changes) };
+        setDemo({ ...current, data: applyChanges(current.data, changes) });
       } else {
         const next = await updateLocalWorkbook(current.id, (state) => {
           if (!state) throw new Error('Reconnect the workbook before saving changes.');
           return queueLocalChanges(state, changes, editBase ?? current);
         });
-        await showLocal(next);
+        showLocal(next);
       }
       return true;
     } catch (cause) {
-      error.value = cause instanceof Error ? cause.message : 'Could not save this change on this device.';
+      setError(cause instanceof Error ? cause.message : 'Could not save this change on this device.');
       return false;
     } finally {
-      busy.value = false;
+      setBusy(false);
     }
-  });
+  };
 
-  const leaveDemo = $(async () => {
+  const leaveDemo = async () => {
     try {
       sessionStorage.removeItem(DEMO_SESSION);
     } catch {
       /* Storage may be unavailable. */
     }
-    demo.value = undefined;
+    setDemo(undefined);
     await reset();
-    error.value = '';
-  });
+    setError('');
+  };
 
   return {
+    reconnectContext,
     saved,
     local,
     demo,
@@ -511,6 +508,8 @@ export function useWorkbook(error: Signal<string>, navigation: ReturnType<typeof
     issues,
     connect,
     setupSelection,
+    setSetupSelection,
+    setAuthError,
     openDemo,
     disconnect,
     discardChange,

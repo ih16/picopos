@@ -1,12 +1,14 @@
-import { component$, useSignal, useVisibleTask$, type QRL } from '@builder.io/qwik';
+import { createEffect, createMemo, createSignal, For } from 'solid-js';
+
 import { type PendingChange } from '../../domain/outbox';
+import { PagedRows } from '../../shared/ui/paged-rows';
 import { Button, Disclosure, SelectField } from '../../shared/ui/controls';
 import { Icon } from '../../shared/ui/icon';
 
 type SyncSettingsProps = {
   intervalSeconds: number;
   intervals: readonly { value: string; label: string }[];
-  onIntervalChange$: QRL<(seconds: string) => void | Promise<void>>;
+  onIntervalChange: (seconds: string) => void | Promise<void>;
   pending: PendingChange[];
   online: boolean;
   expired: boolean;
@@ -15,8 +17,8 @@ type SyncSettingsProps = {
   nextSyncAt?: number;
   lastSyncedAt?: number;
   syncError?: string;
-  onSync$: QRL<() => void | Promise<void>>;
-  onDiscard$: QRL<(id: string) => void | Promise<void>>;
+  onSync: () => void | Promise<void>;
+  onDiscard: (id: string) => void | Promise<void>;
 };
 
 function describeChange({ edits }: PendingChange) {
@@ -46,39 +48,49 @@ function describeChange({ edits }: PendingChange) {
   }
 }
 
-export const SyncSettings = component$<SyncSettingsProps>((props) => {
-  const now = useSignal(0);
-  useVisibleTask$(({ track, cleanup }) => {
-    if (!track(() => props.nextSyncAt)) return;
-    now.value = Date.now();
-    const timer = window.setInterval(() => (now.value = Date.now()), 1_000);
-    cleanup(() => window.clearInterval(timer));
-  });
-  const seconds =
-    now.value && props.nextSyncAt
-      ? Math.max(0, Math.ceil((props.nextSyncAt - now.value) / 1_000))
-      : undefined;
-  const count = props.pending.length;
-  const blocked = props.pending.filter((item) => item.issue).length;
-  const queueLabel = `${count} queued ${count === 1 ? 'change' : 'changes'}`;
-  const lastSync = props.lastSyncedAt
-    ? new Date(props.lastSyncedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
-    : undefined;
-  const status = !props.online
-    ? 'Offline'
-    : props.syncing
-      ? 'Syncing…'
-      : props.expired
-        ? 'Reconnect to sync'
-        : props.syncError
-          ? 'Sync delayed'
-          : blocked && blocked === count
-            ? 'Changes need attention'
-            : count
-              ? 'Waiting to sync'
-              : lastSync
-                ? `Last synced ${lastSync}`
-                : 'Ready to sync';
+export function SyncSettings(props: SyncSettingsProps) {
+  const [now, setNow] = createSignal(0);
+  createEffect(
+    () => props.nextSyncAt,
+    (nextSyncAt) => {
+      if (!nextSyncAt) return;
+      setNow(Date.now());
+      const timer = window.setInterval(() => setNow(Date.now()), 1_000);
+      return () => window.clearInterval(timer);
+    },
+  );
+  const seconds = createMemo(() =>
+    now() && props.nextSyncAt ? Math.max(0, Math.ceil((props.nextSyncAt - now()) / 1_000)) : undefined,
+  );
+  const countdown = () => {
+    const value = seconds();
+    return value === undefined ? '' : Math.floor(value / 60) + ':' + String(value % 60).padStart(2, '0');
+  };
+  const count = createMemo(() => props.pending.length);
+  const blocked = createMemo(() => props.pending.filter((item) => item.issue).length);
+  const queueLabel = createMemo(() => `${count()} queued ${count() === 1 ? 'change' : 'changes'}`);
+  const lastSync = createMemo(() =>
+    props.lastSyncedAt
+      ? new Date(props.lastSyncedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
+      : undefined,
+  );
+  const status = createMemo(() =>
+    !props.online
+      ? 'Offline'
+      : props.syncing
+        ? 'Syncing…'
+        : props.expired
+          ? 'Reconnect to sync'
+          : props.syncError
+            ? 'Sync delayed'
+            : blocked() && blocked() === count()
+              ? 'Changes need attention'
+              : count()
+                ? 'Waiting to sync'
+                : lastSync()
+                  ? `Last synced ${lastSync()}`
+                  : 'Ready to sync',
+  );
 
   return (
     <>
@@ -88,28 +100,28 @@ export const SyncSettings = component$<SyncSettingsProps>((props) => {
           label="Minimum sync interval"
           value={String(props.intervalSeconds)}
           options={[...props.intervals]}
-          onChange$={props.onIntervalChange$}
+          onChange={props.onIntervalChange}
         />
         <Button
           type="button"
           disabled={props.busy || props.syncing || !props.online}
-          aria-label={count ? `Sync now, ${queueLabel}` : 'Sync now'}
-          onClick$={props.onSync$}
+          aria-label={count() ? `Sync now, ${queueLabel()}` : 'Sync now'}
+          onClick={props.onSync}
         >
           <Icon name="upload" />
           Sync now
-          {count > 0 && (
+          {count() > 0 && (
             <span class="badge sync-settings-count" aria-hidden="true">
-              {count}
+              {count()}
             </span>
           )}
         </Button>
         <span class="muted" role="status">
-          {status}
+          {status()}
         </span>
-        {seconds !== undefined && (
+        {countdown() && (
           <span class="muted" role="timer">
-            Next sync in {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}
+            Next sync in {countdown()}
           </span>
         )}
       </div>
@@ -118,33 +130,39 @@ export const SyncSettings = component$<SyncSettingsProps>((props) => {
           {props.syncError}
         </p>
       )}
-      {count > 0 && (
+      {count() > 0 && (
         <Disclosure label="Preview queued changes">
-          <ul class="sync-queue">
-            {props.pending.map((item) => (
-              <li key={item.id} class="sync-queue-item">
-                <div>
-                  <strong>{describeChange(item)}</strong>
-                  {item.edits.length > 1 && (
-                    <p class="muted sync-queue-detail">{item.edits.length} related records</p>
+          <ul class="sync-queue paged-viewport">
+            <PagedRows rows={props.pending} list estimate={100}>
+              {(page) => (
+                <For each={page()}>
+                  {(item) => (
+                    <li class="sync-queue-item">
+                      <div>
+                        <strong>{describeChange(item)}</strong>
+                        {item.edits.length > 1 && (
+                          <p class="muted sync-queue-detail">{item.edits.length} related records</p>
+                        )}
+                        {item.issue && <p class="negative sync-queue-detail">{item.issue}</p>}
+                      </div>
+                      {item.issue && (
+                        <Button
+                          type="button"
+                          class="secondary compact"
+                          disabled={props.busy || props.syncing}
+                          onClick={() => props.onDiscard(item.id)}
+                        >
+                          Discard local change
+                        </Button>
+                      )}
+                    </li>
                   )}
-                  {item.issue && <p class="negative sync-queue-detail">{item.issue}</p>}
-                </div>
-                {item.issue && (
-                  <Button
-                    type="button"
-                    class="secondary compact"
-                    disabled={props.busy || props.syncing}
-                    onClick$={() => props.onDiscard$(item.id)}
-                  >
-                    Discard local change
-                  </Button>
-                )}
-              </li>
-            ))}
+                </For>
+              )}
+            </PagedRows>
           </ul>
         </Disclosure>
       )}
     </>
   );
-});
+}

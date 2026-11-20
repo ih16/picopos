@@ -1,55 +1,79 @@
-import { Slot, component$, useComputed$, useId, useSignal, type QRL } from '@builder.io/qwik';
-import { NUMBER_FORMAT_OPTIONS } from '../../domain/settings';
+import type { JSX } from '@solidjs/web';
+import { createMemo, createSignal, For } from 'solid-js';
+
 import { CURRENCY_OPTIONS } from '../../domain/currencies';
-import { makeId, type RowChange, type WorkbookData } from '../../domain/workbook';
+import { NUMBER_FORMAT_OPTIONS } from '../../domain/settings';
 import { SYNC_INTERVALS } from '../../domain/sync-timing';
-import { ActionBar, EditorForm, Button, Input, Panel, SelectField } from '../../shared/ui/controls';
+import { makeId, type RowChange, type WorkbookData } from '../../domain/workbook';
+import { ActionBar, Button, EditorForm, Input, Panel, SelectField } from '../../shared/ui/controls';
 import { editSetting, prepareSettingsSave, settingsEditorValues, type SettingsDraft } from './settings-draft';
 
-export const BusinessSettings = component$<{
+type BusinessSettingsProps = {
   data: WorkbookData;
   busy: boolean;
   error?: string;
-  onCommit$?: QRL<(changes: RowChange[], editBase?: RowChange[]) => Promise<boolean>>;
+  onCommit?: (changes: RowChange[], editBase?: RowChange[]) => Promise<boolean>;
   setup?: {
     interval: number;
-    onFinish$: QRL<(changes: RowChange[], interval: string) => Promise<void>>;
-    onCancel$: QRL<() => void>;
+    onFinish: (changes: RowChange[], interval: string) => Promise<void>;
+    onCancel: () => void;
   };
-}>(({ data, busy, error, onCommit$, setup }) => {
-  const id = useId();
-  const interval = useSignal(String(setup?.interval ?? ''));
-  const draft = useSignal<SettingsDraft>({});
-  const values = useComputed$(() => settingsEditorValues(data, draft.value));
-  const localError = useSignal('');
-  const saving = useSignal(false);
-  const currencyOptions = CURRENCY_OPTIONS.some((option) => option.value === values.value.currency)
-    ? CURRENCY_OPTIONS
-    : [...CURRENCY_OPTIONS, { value: values.value.currency, label: values.value.currency }];
+} & { children?: JSX.Element };
+
+export function BusinessSettings(props: BusinessSettingsProps) {
+  const id = crypto.randomUUID();
+  const [interval, setSyncInterval] = createSignal(String(props.setup?.interval ?? ''));
+  const [draft, setDraft] = createSignal<SettingsDraft>({});
+  const values = createMemo(() => settingsEditorValues(props.data, draft()));
+  const [localError, setLocalError] = createSignal('');
+  const [saving, setSaving] = createSignal(false);
+  const currencyOptions = createMemo(() =>
+    CURRENCY_OPTIONS.some((option) => option.value === values().currency)
+      ? CURRENCY_OPTIONS
+      : [...CURRENCY_OPTIONS, { value: values().currency, label: values().currency }],
+  );
   return (
     <Panel class="stack settings-business" role="region" aria-label="Currency and shipping">
       <EditorForm
         class="stack business-settings-form"
-        preventdefault:submit
-        onSubmit$={async () => {
-          if (busy || saving.value) return;
-          saving.value = true;
-          localError.value = '';
+        onSubmit={async () => {
+          if (props.busy || saving()) return;
+          setSaving(true);
+          setLocalError('');
           try {
-            const { changes, base } = prepareSettingsSave(data, draft.value, Boolean(setup));
-            if (setup) await setup.onFinish$(changes, interval.value);
-            else if (changes.length && (await onCommit$?.(changes, base))) draft.value = {};
+            const { changes, base } = prepareSettingsSave(props.data, draft(), Boolean(props.setup));
+            if (props.setup) await props.setup.onFinish(changes, interval());
+            else if (changes.length && (await props.onCommit?.(changes, base))) setDraft({});
           } catch (cause) {
-            localError.value = cause instanceof Error ? cause.message : 'Could not save settings.';
+            setLocalError(cause instanceof Error ? cause.message : 'Could not save settings.');
           } finally {
-            saving.value = false;
+            setSaving(false);
           }
         }}
+        actions={
+          <ActionBar class="settings-save-actions" label="Currency and shipping actions">
+            {props.setup && (
+              <Button
+                class="secondary"
+                onClick={props.setup.onCancel}
+                disabled={props.busy || saving()}
+                icon="close"
+                label="Cancel"
+              />
+            )}
+            <Button
+              type="submit"
+              disabled={props.busy || saving()}
+              icon="save"
+              label={props.setup ? 'Finish setup' : 'Save settings'}
+            />
+          </ActionBar>
+        }
       >
-        <Slot />
-        {values.value.shippingError && (
+        {props.children}
+        {values().shippingError && (
           <p class="notice error" role="alert">
-            {values.value.shippingError} Add a shipping option to replace the invalid list.
+            {values().shippingError} Add a shipping option to replace the invalid list.
           </p>
         )}
         <section class="settings-form-column stack" aria-labelledby={`${id}-currency`}>
@@ -60,121 +84,137 @@ export const BusinessSettings = component$<{
           <div class="settings-currency-fields">
             <SelectField
               label="Currency and symbol"
-              value={values.value.currency}
-              options={currencyOptions}
-              disabled={saving.value}
-              onChange$={(value) => {
-                if (saving.value) return false;
-                draft.value = editSetting(data, draft.value, 'currency', value);
+              value={values().currency}
+              options={currencyOptions()}
+              disabled={saving()}
+              onChange={(value) => {
+                if (saving()) return false;
+                setDraft(editSetting(props.data, draft(), 'currency', value));
               }}
             />
             <SelectField
               label="Number format"
-              value={values.value.numberFormat}
+              value={values().numberFormat}
               options={NUMBER_FORMAT_OPTIONS}
-              disabled={saving.value}
-              onChange$={(value) => {
-                if (saving.value) return false;
-                draft.value = editSetting(data, draft.value, 'numberFormat', value);
+              disabled={saving()}
+              onChange={(value) => {
+                if (saving()) return false;
+                setDraft(editSetting(props.data, draft(), 'numberFormat', value));
               }}
             />
           </div>
-          {!setup && <p class="muted settings-help">Changing currency does not convert existing amounts.</p>}
+          {!props.setup && (
+            <p class="muted settings-help">Changing currency does not convert existing amounts.</p>
+          )}
         </section>
         <section class="settings-form-column stack" aria-labelledby={`${id}-shipping`}>
           <div class="settings-section-heading">
             <h2 id={`${id}-shipping`}>Shipping rates</h2>
             <p class="muted">Create delivery options. Use a zero rate for pickup.</p>
           </div>
-          {values.value.shippingOptions.length > 0 && (
+          {values().shippingOptions.length > 0 && (
             <div class="settings-shipping-options">
-              {values.value.shippingOptions.map((option, index) => (
-                <div class="settings-shipping-row" key={option.id}>
-                  <label class="field">
-                    Option name
-                    <Input
-                      required
-                      disabled={saving.value}
-                      placeholder="Shipping 1 or Pickup"
-                      value={option.name}
-                      onInput$={(_, input) => {
-                        if (saving.value) return;
-                        const rates = settingsEditorValues(data, draft.value).shippingOptions;
-                        draft.value = editSetting(
-                          data,
-                          draft.value,
-                          'shippingOptions',
-                          rates.map((row) => (row.id === option.id ? { ...row, name: input.value } : row)),
+              <For each={values().shippingOptions} keyed={(row) => row.id}>
+                {(option, index) => (
+                  <div class="settings-shipping-row">
+                    <label class="field">
+                      Option name
+                      <Input
+                        required
+                        disabled={saving()}
+                        placeholder="Shipping 1 or Pickup"
+                        value={option().name}
+                        onInput={(event) => {
+                          const input = event.currentTarget;
+                          if (saving()) return;
+                          const rates = settingsEditorValues(props.data, draft()).shippingOptions;
+                          setDraft(
+                            editSetting(
+                              props.data,
+                              draft(),
+                              'shippingOptions',
+                              rates.map((row) =>
+                                row.id === option().id ? { ...row, name: input.value } : row,
+                              ),
+                            ),
+                          );
+                        }}
+                      />
+                    </label>
+                    <label class="field">
+                      Rate ({values().currency.toUpperCase()})
+                      <Input
+                        required
+                        disabled={saving()}
+                        type="number"
+                        min="0"
+                        step="any"
+                        inputmode="decimal"
+                        placeholder="0"
+                        value={option().rate}
+                        onInput={(event) => {
+                          const input = event.currentTarget;
+                          if (saving()) return;
+                          const rates = settingsEditorValues(props.data, draft()).shippingOptions;
+                          setDraft(
+                            editSetting(
+                              props.data,
+                              draft(),
+                              'shippingOptions',
+                              rates.map((row) =>
+                                row.id === option().id ? { ...row, rate: input.value } : row,
+                              ),
+                            ),
+                          );
+                        }}
+                      />
+                    </label>
+                    <Button
+                      class="secondary"
+                      aria-label={`Remove shipping option ${index() + 1}`}
+                      disabled={saving()}
+                      onClick={() => {
+                        if (saving()) return;
+                        const rates = settingsEditorValues(props.data, draft()).shippingOptions;
+                        setDraft(
+                          editSetting(
+                            props.data,
+                            draft(),
+                            'shippingOptions',
+                            rates.filter((row) => row.id !== option().id),
+                          ),
                         );
                       }}
+                      icon="close"
+                      mobileIconOnly
+                      label="Remove"
                     />
-                  </label>
-                  <label class="field">
-                    Rate ({values.value.currency.toUpperCase()})
-                    <Input
-                      required
-                      disabled={saving.value}
-                      type="number"
-                      min="0"
-                      step="any"
-                      inputMode="decimal"
-                      placeholder="0"
-                      value={option.rate}
-                      onInput$={(_, input) => {
-                        if (saving.value) return;
-                        const rates = settingsEditorValues(data, draft.value).shippingOptions;
-                        draft.value = editSetting(
-                          data,
-                          draft.value,
-                          'shippingOptions',
-                          rates.map((row) => (row.id === option.id ? { ...row, rate: input.value } : row)),
-                        );
-                      }}
-                    />
-                  </label>
-                  <Button
-                    class="secondary"
-                    aria-label={`Remove shipping option ${index + 1}`}
-                    disabled={saving.value}
-                    onClick$={() => {
-                      if (saving.value) return;
-                      const rates = settingsEditorValues(data, draft.value).shippingOptions;
-                      draft.value = editSetting(
-                        data,
-                        draft.value,
-                        'shippingOptions',
-                        rates.filter((row) => row.id !== option.id),
-                      );
-                    }}
-                    icon="close"
-                    mobileIconOnly
-                    label="Remove"
-                  />
-                </div>
-              ))}
+                  </div>
+                )}
+              </For>
             </div>
           )}
-          {!values.value.shippingOptions.length && (
-            <p class="settings-empty muted">No shipping rates added.</p>
-          )}
+          {!values().shippingOptions.length && <p class="settings-empty muted">No shipping rates added.</p>}
           <div class="settings-add-shipping">
             <Button
               class="secondary"
-              disabled={saving.value}
-              onClick$={() => {
-                if (saving.value) return;
-                const rates = settingsEditorValues(data, draft.value).shippingOptions;
-                draft.value = editSetting(data, draft.value, 'shippingOptions', [
-                  ...rates,
-                  { id: makeId(), name: '', rate: '0' },
-                ]);
+              disabled={saving()}
+              onClick={() => {
+                if (saving()) return;
+                const rates = settingsEditorValues(props.data, draft()).shippingOptions;
+                setDraft(
+                  editSetting(props.data, draft(), 'shippingOptions', [
+                    ...rates,
+                    { id: makeId(), name: '', rate: '0' },
+                  ]),
+                );
               }}
               icon="plus"
               label="Add shipping option"
             />
           </div>
         </section>
-        {setup && (
+        {props.setup && (
           <section class="settings-form-column stack" aria-labelledby={`${id}-setup-sync`}>
             <div class="settings-section-heading">
               <h2 id={`${id}-setup-sync`}>Automatic sync</h2>
@@ -182,39 +222,22 @@ export const BusinessSettings = component$<{
             </div>
             <SelectField
               label="Sync interval"
-              value={interval.value}
+              value={interval()}
               options={[...SYNC_INTERVALS]}
-              disabled={saving.value}
-              onChange$={(value) => {
-                if (saving.value) return false;
-                interval.value = value;
+              disabled={saving()}
+              onChange={(value) => {
+                if (saving()) return false;
+                setSyncInterval(value);
               }}
             />
           </section>
         )}
-        {(localError.value || error) && (
+        {(localError() || props.error) && (
           <p class="notice error" role="alert">
-            {localError.value || error}
+            {localError() || props.error}
           </p>
         )}
-        <ActionBar q:slot="actions" class="settings-save-actions" label="Currency and shipping actions">
-          {setup && (
-            <Button
-              class="secondary"
-              onClick$={setup.onCancel$}
-              disabled={busy || saving.value}
-              icon="close"
-              label="Cancel"
-            />
-          )}
-          <Button
-            type="submit"
-            disabled={busy || saving.value}
-            icon="save"
-            label={setup ? 'Finish setup' : 'Save settings'}
-          />
-        </ActionBar>
       </EditorForm>
     </Panel>
   );
-});
+}

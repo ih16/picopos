@@ -4,17 +4,17 @@
 
 Use Node 22.12 or newer and `npm ci`. Set the three public Google identifiers from `.env.example`, restrict the Picker API key by API and origin, and configure the exact OAuth JavaScript origin. These frontend identifiers are not secret credentials; never put service-account credentials in `VITE_*` variables.
 
-Run `PUBLIC_ORIGIN=https://www.picopos.app npm run verify`. Deploy only `dist/` to HTTPS hosting at the origin root. The `server/` directory is build-time output, not a production API service. Hash routes need no server rewrites beyond serving `/`.
+Run `npm run verify`. Deploy only `dist/` to HTTPS hosting at the origin root. Hash routes need no server rewrites beyond serving `/`.
 
-Serve HTML, `q-data.json`, and `picopos-service-worker.js` with revalidation (`Cache-Control: no-cache`). Serve hashed `build/` and `assets/` files with long-lived immutable caching. Keep prior hashed assets available during deployment so open tabs can load their matching chunks. The offline worker intentionally waits for old tabs to close before activating a new shell.
+Serve HTML and `picopos-service-worker.js` with revalidation (`Cache-Control: no-cache`). Serve hashed `assets/` files with long-lived immutable caching. Keep prior hashed assets available during deployment so open tabs can load their matching chunks. The offline worker intentionally waits for old tabs to close before activating a new shell.
 
-Use `X-Content-Type-Options: nosniff` and `Referrer-Policy: strict-origin-when-cross-origin`. Test any Content Security Policy against Google Identity, Picker, Qwik's bootstrap, and the inline theme initialization before enforcing it.
+Use `X-Content-Type-Options: nosniff` and `Referrer-Policy: strict-origin-when-cross-origin`. Test any Content Security Policy against Google Identity, Picker, and the inline theme initialization before enforcing it.
 
 ## Vercel
 
 Import this project into Vercel with the project root as the Root Directory. The checked-in `vercel.json` selects the Other framework preset, installs with `npm ci`, builds with `npm run build`, and publishes `dist/`. It also sets the cache and security headers described above. No route rewrites are needed for hash navigation. Configuration fields follow [Vercel's static configuration reference](https://vercel.com/docs/project-configuration/vercel-json).
 
-In the Vercel project settings, select Node.js 22.x and add `PUBLIC_ORIGIN` with `https://www.picopos.app`, plus `VITE_GOOGLE_CLIENT_ID`, `VITE_GOOGLE_API_KEY`, and `VITE_GOOGLE_PROJECT_NUMBER` from `.env.example`. Apply the variables to the intended deployment environments and redeploy after changes. Add the deployed origin to the Google OAuth client's authorized JavaScript origins and the Picker API key's website restrictions. Preview deployments that connect to Google need their own authorized origin; use the demo when those credentials are not configured.
+In the Vercel project settings, select Node.js 22.x and add `VITE_GOOGLE_CLIENT_ID`, `VITE_GOOGLE_API_KEY`, and `VITE_GOOGLE_PROJECT_NUMBER` from `.env.example`. Apply the variables to the intended deployment environments and redeploy after changes. Add the deployed origin to the Google OAuth client's authorized JavaScript origins and the Picker API key's website restrictions. Preview deployments that connect to Google need their own authorized origin; use the demo when those credentials are not configured.
 
 Deploy through Vercel's Git integration or, with the Vercel CLI installed, run `vercel` for a preview and `vercel --prod` for production. Keep the normal release checks below; a successful local build does not verify deployed headers or Google authorization.
 
@@ -30,8 +30,6 @@ Automated verification does not exercise live Google OAuth, real Sheets writes, 
 ## Dependency audit
 
 Run `npm run audit` against the installed lockfile for each release. Audit results are time-sensitive and are separate from `npm run verify` and CI. Record the audit date, affected dependency chain, and disposition with the release.
-
-`package.json` currently overrides Sharp to `^0.35.5`. Product uploads use browser canvas; Sharp belongs to the Qwik build toolchain. Review the override against the installed dependency tree before changing it. A previous review recorded a Qwik City → Zod finding; rerun the audit to establish whether it still applies. Do not override a dependency across major versions merely to silence an advisory without checking the consuming framework's compatibility.
 
 ## Preview and rollback
 

@@ -1,5 +1,5 @@
+import type { OrderItem, Return as ReturnEntry, WorkbookData } from '../../domain/workbook';
 import type { DraftForm } from './order-types';
-import type { OrderItem, Return as ReturnEntry } from '../../domain/workbook';
 
 export function dateLabel(value: string) {
   const date = new Date(value);
@@ -43,4 +43,24 @@ export function returnLabel(items: OrderItem[], returns: ReturnEntry[]) {
     return received >= ordered ? 'Returned' : 'Partially returned';
   }
   return returns.some((entry) => entry.status === 'Requested') ? 'Return requested' : '';
+}
+
+export function indexOrderRows(data: WorkbookData) {
+  const itemsByOrder = new Map<string, OrderItem[]>();
+  const orderByItemId = new Map<string, string>();
+  for (const item of data['Order Items']) {
+    orderByItemId.set(item.id, item.orderId);
+    const previous = itemsByOrder.get(item.orderId) ?? [];
+    previous.push(item);
+    itemsByOrder.set(item.orderId, previous);
+  }
+  const returnsByOrder = new Map<string, ReturnEntry[]>();
+  for (const entry of data.Returns) {
+    const orderId = orderByItemId.get(entry.orderItemId);
+    if (!orderId) continue;
+    const previous = returnsByOrder.get(orderId) ?? [];
+    previous.push(entry);
+    returnsByOrder.set(orderId, previous);
+  }
+  return { itemsByOrder, returnsByOrder };
 }

@@ -28,7 +28,8 @@ function installOfflineShell(version, assets) {
     const url = new URL(request.url);
     if (request.method !== 'GET' || url.origin !== self.location.origin) return;
 
-    const path = url.pathname === '/' && request.mode === 'navigate' ? '/index.html' : url.pathname;
+    const path =
+      request.mode === 'navigate' && url.pathname.endsWith('/') ? url.pathname + 'index.html' : url.pathname;
     if (!assetPaths.has(path)) return;
 
     event.respondWith(

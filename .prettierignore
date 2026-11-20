@@ -1,6 +1,5 @@
 node_modules/
 dist/
-server/
 output/
 package-lock.json
 .env*

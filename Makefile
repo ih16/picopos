@@ -15,8 +15,7 @@ help:
 	  'make format        Format source files' \
 	  'make format-check  Check source formatting' \
 	  '' \
-	  'Pass Vite options with ARGS="--port 5174" for dev or preview.' \
-	  'Set the build origin with PUBLIC_ORIGIN=https://www.picopos.app.'
+	  'Pass Vite options with ARGS="--port 5174" for dev or preview.'
 
 install:
 	npm ci

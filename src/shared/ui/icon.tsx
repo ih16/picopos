@@ -1,5 +1,3 @@
-import { component$ } from '@builder.io/qwik';
-
 const paths = {
   dashboard: ['M3 3h7v7H3V3Zm11 0h7v11h-7V3ZM3 14h7v7H3v-7Zm11 4h7v3h-7v-3Z'],
   customers: [
@@ -50,23 +48,26 @@ const paths = {
 
 export type IconName = keyof typeof paths;
 
-export const Icon = component$<{ name: IconName; class?: string }>(({ name, class: className }) => (
-  <svg
-    class={['icon', className]}
-    xmlns="http://www.w3.org/2000/svg"
-    width="24"
-    height="24"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width={name === 'more' ? 3.5 : 1.6}
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-    focusable="false"
-  >
-    {paths[name].map((path) => (
-      <path key={path} d={path} />
-    ))}
-  </svg>
-));
+type IconProps = { name: IconName; class?: string };
+
+export function Icon(props: IconProps) {
+  return (
+    <svg
+      class={['icon', props.class]}
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width={props.name === 'more' ? 3.5 : 1.6}
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      {paths[props.name].map((path) => (
+        <path d={path} />
+      ))}
+    </svg>
+  );
+}

@@ -1,9 +1,10 @@
-import { lineSubtotal, orderTotal } from '../../domain/order-totals';
-import { money } from '../../shared/lib/format';
-import { workbookCurrency, workbookNumberFormat } from '../../domain/settings';
-import { component$, useContext, useSignal, useStore } from '@builder.io/qwik';
+import { createMemo, createSignal, createStore, For, Show, useContext } from 'solid-js';
+
 import { ScreenNavigation } from '../../app/navigation/screen-navigation';
 import { orderPath } from '../../app/navigation/screen-route';
+import { lineSubtotal, orderTotal } from '../../domain/order-totals';
+import { workbookCurrency, workbookNumberFormat } from '../../domain/settings';
+import type { Order, PaymentStatus } from '../../domain/workbook';
 import {
   getInventory,
   getShippingOptions,
@@ -11,48 +12,58 @@ import {
   PAYMENT_STATUSES,
   type RowChange,
 } from '../../domain/workbook';
-import { Accordion, ActionBar, Button, Input, SelectField, Textarea } from '../../shared/ui/controls';
+import { money } from '../../shared/lib/format';
+import { ActionBar, Button, Input, SelectField, Textarea } from '../../shared/ui/controls';
 import { ProductPhoto } from '../../shared/ui/product-thumbnail';
-
 import { emptyDraft, quantityLabel } from './order-helpers';
 import type { DraftForm, OrdersProps } from './order-types';
-import type { Order, PaymentStatus } from '../../domain/workbook';
 
-export const CreateOrder = component$<OrdersProps>(({ data, busy, onCommit$, saveError }) => {
-  const { navigate$, close$ } = useContext(ScreenNavigation);
-  const error = useSignal('');
-  const nextLineKey = useSignal(1);
-  const draft = useStore<DraftForm>(emptyDraft());
-  const customerSectionOpen = useSignal(true);
-  const itemsSectionOpen = useSignal(true);
-  const paymentSectionOpen = useSignal(true);
-  let shippingOptions: ReturnType<typeof getShippingOptions> = [];
-  let shippingError = '';
-  try {
-    shippingOptions = getShippingOptions(data);
-  } catch (cause) {
-    shippingError = (cause as Error).message;
-  }
-  const currency = workbookCurrency(data);
-  const numberFormat = workbookNumberFormat(data);
-  const products = new Map(data.Products.map((product) => [product.id, product]));
-  const variants = new Map(data.Variants.map((variant) => [variant.id, variant]));
-  const activeVariants = data.Variants.filter(
-    (variant) => variant.active && products.get(variant.productId)?.active,
-  );
-  const balances = new Map(getInventory(data).map((entry) => [entry.variantId, entry]));
-  const chosenLines = draft.lines.filter((line) => variants.has(line.variantId));
-  const totalUnits = chosenLines.reduce((sum, line) => sum + (line.quantity || 0), 0);
-  const subtotal = chosenLines.reduce(
-    (total, line) => total + lineSubtotal(line.quantity || 0, variants.get(line.variantId)?.price ?? 0),
-    0,
-  );
-  const shippingOption = shippingOptions.find((option) => option.id === draft.shippingOptionId);
-  const draftShippingCharge = shippingOption?.rate ?? Number(draft.shippingCharge);
-  const draftTotal = orderTotal(subtotal, {
-    discount: Number(draft.discount),
-    shippingCharge: draftShippingCharge,
+export function CreateOrder(props: OrdersProps) {
+  const { navigate, close } = useContext(ScreenNavigation);
+  const [error, setError] = createSignal('');
+  let nextLineKey = 1;
+  const [draft, setDraft] = createStore<DraftForm>(emptyDraft());
+  const [customerSectionOpen, setCustomerSectionOpen] = createSignal(true);
+  const [itemsSectionOpen, setItemsSectionOpen] = createSignal(true);
+  const [paymentSectionOpen, setPaymentSectionOpen] = createSignal(true);
+  const shipping = createMemo(() => {
+    let shippingOptions: ReturnType<typeof getShippingOptions> = [];
+    let shippingError = '';
+    try {
+      shippingOptions = getShippingOptions(props.data);
+    } catch (cause) {
+      shippingError = (cause as Error).message;
+    }
+    return { shippingOptions, shippingError };
   });
+  const currency = createMemo(() => workbookCurrency(props.data));
+  const numberFormat = createMemo(() => workbookNumberFormat(props.data));
+  const products = createMemo(() => new Map(props.data.Products.map((product) => [product.id, product])));
+  const variants = createMemo(() => new Map(props.data.Variants.map((variant) => [variant.id, variant])));
+  const activeVariants = createMemo(() =>
+    props.data.Variants.filter((variant) => variant.active && products().get(variant.productId)?.active),
+  );
+  const balances = createMemo(
+    () => new Map(getInventory(props.data).map((entry) => [entry.variantId, entry])),
+  );
+  const chosenLines = createMemo(() => draft.lines.filter((line) => variants().has(line.variantId)));
+  const totalUnits = createMemo(() => chosenLines().reduce((sum, line) => sum + (line.quantity || 0), 0));
+  const subtotal = createMemo(() =>
+    chosenLines().reduce(
+      (total, line) => total + lineSubtotal(line.quantity || 0, variants().get(line.variantId)?.price ?? 0),
+      0,
+    ),
+  );
+  const shippingOption = createMemo(() =>
+    shipping().shippingOptions.find((option) => option.id === draft.shippingOptionId),
+  );
+  const draftShippingCharge = createMemo(() => shippingOption()?.rate ?? Number(draft.shippingCharge));
+  const draftTotal = createMemo(() =>
+    orderTotal(subtotal(), {
+      discount: Number(draft.discount),
+      shippingCharge: draftShippingCharge(),
+    }),
+  );
 
   return (
     <div class="stack record-page new-order-page">
@@ -61,39 +72,36 @@ export const CreateOrder = component$<OrdersProps>(({ data, busy, onCommit$, sav
       </div>
       <form
         class="stack order-draft-form"
-        noValidate
-        preventdefault:submit
-        onSubmit$={async (_, form) => {
-          error.value = '';
-          for (const line of draft.lines) {
-            const input = form.elements.namedItem(`quantity-${line.key}`);
-            if (input instanceof HTMLInputElement) line.quantity = input.valueAsNumber;
-          }
+        novalidate
+        onSubmit={async (event) => {
+          event.preventDefault();
+          const form = event.currentTarget;
+          setError('');
           if (!draft.customer.trim()) {
-            customerSectionOpen.value = true;
-            error.value = 'Enter the customer name.';
+            setCustomerSectionOpen(true);
+            setError('Enter the customer name.');
             return;
           }
           const discount = Number(draft.discount);
-          if (shippingOptions.length && !shippingOption) {
-            paymentSectionOpen.value = true;
-            error.value = 'Choose a shipping option.';
+          if (shipping().shippingOptions.length && !shippingOption()) {
+            setPaymentSectionOpen(true);
+            setError('Choose a shipping option.');
             return;
           }
-          if (shippingError || (draft.shippingOptionId && !shippingOption)) {
-            paymentSectionOpen.value = true;
-            error.value = shippingError || 'This shipping option was removed. Choose another option.';
+          if (shipping().shippingError || (draft.shippingOptionId && !shippingOption())) {
+            setPaymentSectionOpen(true);
+            setError(shipping().shippingError || 'This shipping option was removed. Choose another option.');
             return;
           }
-          const shippingCharge = draftShippingCharge;
+          const shippingCharge = draftShippingCharge();
           if (
             !Number.isFinite(discount) ||
             !Number.isFinite(shippingCharge) ||
             discount < 0 ||
             shippingCharge < 0
           ) {
-            paymentSectionOpen.value = true;
-            error.value = 'Enter a nonnegative discount and shipping charge.';
+            setPaymentSectionOpen(true);
+            setError('Enter a nonnegative discount and shipping charge.');
             return;
           }
           const orderId = makeId();
@@ -110,25 +118,27 @@ export const CreateOrder = component$<OrdersProps>(({ data, busy, onCommit$, sav
             notes: draft.notes.trim(),
             discount,
             shippingCharge,
-            shippingOption: shippingOption?.name ?? '',
+            shippingOption: shippingOption()?.name ?? '',
           };
           const changes: RowChange[] = [{ tab: 'Orders', row: order }];
           let subtotal = 0;
           for (const [index, line] of draft.lines.entries()) {
-            const variant = data.Variants.find((entry) => entry.id === line.variantId && entry.active);
+            const variant = props.data.Variants.find((entry) => entry.id === line.variantId && entry.active);
             const product =
-              variant && data.Products.find((entry) => entry.id === variant.productId && entry.active);
+              variant && props.data.Products.find((entry) => entry.id === variant.productId && entry.active);
             if (!variant || !product) {
-              itemsSectionOpen.value = true;
-              error.value = `Choose an active variant for item ${index + 1}.`;
+              setItemsSectionOpen(true);
+              setError(`Choose an active variant for item ${index + 1}.`);
               return;
             }
-            if (!Number.isSafeInteger(line.quantity) || line.quantity < 1) {
-              itemsSectionOpen.value = true;
-              error.value = `Enter a whole quantity of 1 or more for item ${index + 1}.`;
+            const input = form.elements.namedItem(`quantity-${line.key}`);
+            const quantity = input instanceof HTMLInputElement ? input.valueAsNumber : line.quantity;
+            if (!Number.isSafeInteger(quantity) || quantity < 1) {
+              setItemsSectionOpen(true);
+              setError(`Enter a whole quantity of 1 or more for item ${index + 1}.`);
               return;
             }
-            subtotal += lineSubtotal(line.quantity, variant.price);
+            subtotal += lineSubtotal(quantity, variant.price);
             changes.push({
               tab: 'Order Items',
               row: {
@@ -138,31 +148,35 @@ export const CreateOrder = component$<OrdersProps>(({ data, busy, onCommit$, sav
                 productName: product.name,
                 variantName: variant.optionValues || 'Default',
                 sku: variant.sku,
-                quantity: line.quantity,
+                quantity,
                 unitPrice: variant.price,
               },
             });
           }
           if (discount > subtotal) {
-            paymentSectionOpen.value = true;
-            error.value = 'The discount cannot exceed the items subtotal.';
+            setPaymentSectionOpen(true);
+            setError('The discount cannot exceed the items subtotal.');
             return;
           }
-          if (await onCommit$(changes)) {
-            await navigate$(orderPath(orderId), true);
+          if (await props.onCommit(changes)) {
+            await navigate(orderPath(orderId), true);
           }
         }}
       >
-        <Accordion.Root multiple collapsible class="form-accordion stack">
-          <Accordion.Item open value="customer" bind:open={customerSectionOpen} class="panel form-section">
-            <Accordion.Header>
-              <Accordion.Trigger type="button" class="form-section-trigger">
-                <span>Customer</span>
-                <span class="form-section-summary">{draft.customer || 'Choose or enter a customer'}</span>
-                <span class="control-chevron" aria-hidden="true" />
-              </Accordion.Trigger>
-            </Accordion.Header>
-            <Accordion.Content class="form-section-content stack">
+        <div class="form-accordion stack">
+          <details
+            open={customerSectionOpen()}
+            onToggle={(event) => {
+              setCustomerSectionOpen(event.currentTarget.open);
+            }}
+            class="panel form-section"
+          >
+            <summary class="form-section-trigger">
+              <span>Customer</span>
+              <span class="form-section-summary">{draft.customer || 'Choose or enter a customer'}</span>
+              <span class="control-chevron" aria-hidden="true" />
+            </summary>
+            <div class="form-section-content stack">
               <div class="order-customer-layout">
                 <div class="order-customer-source stack">
                   <div>
@@ -177,18 +191,26 @@ export const CreateOrder = component$<OrdersProps>(({ data, busy, onCommit$, sav
                     value={draft.customerId}
                     options={[
                       { value: '', label: 'Enter customer manually' },
-                      ...data.Customers.filter((customer) => customer.active).map((customer) => ({
+                      ...props.data.Customers.filter((customer) => customer.active).map((customer) => ({
                         value: customer.id,
                         label: `${customer.name}${customer.contact ? ` · ${customer.contact}` : ''}`,
                       })),
                     ]}
-                    onChange$={(value) => {
-                      draft.customerId = value;
-                      const customer = data.Customers.find((entry) => entry.id === value);
+                    onChange={(value) => {
+                      setDraft((draft) => {
+                        draft.customerId = value;
+                      });
+                      const customer = props.data.Customers.find((entry) => entry.id === value);
                       if (customer) {
-                        draft.customer = customer.name;
-                        draft.contact = customer.contact;
-                        draft.address = customer.address;
+                        setDraft((draft) => {
+                          draft.customer = customer.name;
+                        });
+                        setDraft((draft) => {
+                          draft.contact = customer.contact;
+                        });
+                        setDraft((draft) => {
+                          draft.address = customer.address;
+                        });
                       }
                     }}
                   />
@@ -203,10 +225,13 @@ export const CreateOrder = component$<OrdersProps>(({ data, busy, onCommit$, sav
                     </span>
                     <Input
                       required
-                      autoComplete="section-order shipping name"
+                      autocomplete="section-order shipping name"
                       value={draft.customer}
-                      onInput$={(_, input) => {
-                        draft.customer = input.value;
+                      onInput={(event) => {
+                        const input = event.currentTarget;
+                        setDraft((draft) => {
+                          draft.customer = input.value;
+                        });
                       }}
                     />
                   </label>
@@ -214,8 +239,11 @@ export const CreateOrder = component$<OrdersProps>(({ data, busy, onCommit$, sav
                     Phone or email
                     <Input
                       value={draft.contact}
-                      onInput$={(_, input) => {
-                        draft.contact = input.value;
+                      onInput={(event) => {
+                        const input = event.currentTarget;
+                        setDraft((draft) => {
+                          draft.contact = input.value;
+                        });
                       }}
                     />
                   </label>
@@ -225,8 +253,11 @@ export const CreateOrder = component$<OrdersProps>(({ data, busy, onCommit$, sav
                       rows={3}
                       autocomplete="section-order shipping street-address"
                       value={draft.address}
-                      onInput$={(_, input) => {
-                        draft.address = input.value;
+                      onInput={(event) => {
+                        const input = event.currentTarget;
+                        setDraft((draft) => {
+                          draft.address = input.value;
+                        });
                       }}
                     />
                   </label>
@@ -236,156 +267,186 @@ export const CreateOrder = component$<OrdersProps>(({ data, busy, onCommit$, sav
                       rows={3}
                       placeholder="Delivery instructions or other details"
                       value={draft.notes}
-                      onInput$={(_, input) => {
-                        draft.notes = input.value;
+                      onInput={(event) => {
+                        const input = event.currentTarget;
+                        setDraft((draft) => {
+                          draft.notes = input.value;
+                        });
                       }}
                     />
                   </label>
                 </div>
               </div>
-            </Accordion.Content>
-          </Accordion.Item>
-          <Accordion.Item open value="items" bind:open={itemsSectionOpen} class="panel form-section">
-            <Accordion.Header>
-              <Accordion.Trigger type="button" class="form-section-trigger">
-                <span>Order items</span>
-                <span class="form-section-summary">{quantityLabel(totalUnits)}</span>
-                <span class="control-chevron" aria-hidden="true" />
-              </Accordion.Trigger>
-            </Accordion.Header>
-            <Accordion.Content class="form-section-content stack">
-              {activeVariants.length === 0 ? (
+            </div>
+          </details>
+          <details
+            open={itemsSectionOpen()}
+            onToggle={(event) => {
+              setItemsSectionOpen(event.currentTarget.open);
+            }}
+            class="panel form-section"
+          >
+            <summary class="form-section-trigger">
+              <span>Order items</span>
+              <span class="form-section-summary">{quantityLabel(totalUnits())}</span>
+              <span class="control-chevron" aria-hidden="true" />
+            </summary>
+            <div class="form-section-content stack">
+              {activeVariants().length === 0 ? (
                 <p class="empty">Add an active product and variant in Catalog to create an order.</p>
               ) : (
                 <>
-                  {draft.lines.map((line, index) => {
-                    const variant = variants.get(line.variantId);
-                    const product = variant && products.get(variant.productId);
-                    const available = variant ? (balances.get(variant.id)?.available ?? 0) : 0;
-                    const shortage = !!variant && line.quantity > available;
-                    return (
-                      <div key={line.key} class="order-line stack">
-                        <div class="panel-heading">
-                          <div class="row order-item-heading">
-                            {product && (
-                              <ProductPhoto
-                                name={product.name}
-                                value={product.image}
-                                class="order-item-photo"
+                  <For each={draft.lines} keyed={(row) => row.key}>
+                    {(line, index) => {
+                      const variant = createMemo(() => variants().get(line().variantId));
+                      const product = createMemo(() => products().get(variant()?.productId ?? ''));
+                      const available = createMemo(() => balances().get(line().variantId)?.available ?? 0);
+                      const shortage = createMemo(() => !!variant() && line().quantity > available());
+                      return (
+                        <div class="order-line stack">
+                          <div class="panel-heading">
+                            <div class="row order-item-heading">
+                              <Show when={product()}>
+                                {(item) => (
+                                  <ProductPhoto
+                                    name={item().name}
+                                    value={item().image}
+                                    class="order-item-photo"
+                                  />
+                                )}
+                              </Show>
+                              <div>
+                                <h3>{product()?.name || `Item ${index() + 1}`}</h3>
+                                <Show when={variant()}>
+                                  {(item) => (
+                                    <p class="muted">
+                                      {item().optionValues || 'Default'} · {item().sku}
+                                    </p>
+                                  )}
+                                </Show>
+                              </div>
+                            </div>
+                            {draft.lines.length > 1 && (
+                              <Button
+                                type="button"
+                                class="secondary"
+                                disabled={props.busy}
+                                aria-label={`Remove item ${index() + 1}`}
+                                onClick={() => {
+                                  setDraft((draft) => {
+                                    draft.lines = draft.lines.filter((entry) => entry.key !== line().key);
+                                  });
+                                }}
+                                icon="close"
+                                mobileIconOnly
+                                label="Remove"
                               />
                             )}
-                            <div>
-                              <h3>{product?.name || `Item ${index + 1}`}</h3>
-                              {variant && (
-                                <p class="muted">
-                                  {variant.optionValues || 'Default'} · {variant.sku}
-                                </p>
+                          </div>
+                          <SelectField
+                            label={`Product / variant ${index() + 1}`}
+                            placeholder="Search product or SKU"
+                            value={line().variantId}
+                            disabled={props.busy}
+                            options={activeVariants().map((choice) => ({
+                              value: choice.id,
+                              image: products().get(choice.productId)?.image,
+                              imageName: products().get(choice.productId)?.name || 'Product',
+                              label: `${products().get(choice.productId)?.name ?? ''} · ${choice.optionValues || 'Default'} · ${choice.sku} · ${money(choice.price, currency(), numberFormat())}`,
+                              disabled: draft.lines.some(
+                                (other) => other.key !== line().key && other.variantId === choice.id,
+                              ),
+                            }))}
+                            onChange={(value) => {
+                              setDraft((draft) => {
+                                draft.lines[index()].variantId = value;
+                              });
+                            }}
+                          />
+                          <div class="order-line-controls">
+                            <div class="field">
+                              <label for={`order-quantity-${line().key}`}>Quantity</label>
+                              <div class="quantity-stepper">
+                                <Button
+                                  type="button"
+                                  class="secondary"
+                                  disabled={props.busy || !(line().quantity > 1)}
+                                  aria-label={`Decrease quantity for item ${index() + 1}`}
+                                  onClick={() => {
+                                    setDraft((draft) => {
+                                      draft.lines[index()].quantity = Math.max(1, line().quantity - 1);
+                                    });
+                                  }}
+                                >
+                                  −
+                                </Button>
+                                <Input
+                                  id={`order-quantity-${line().key}`}
+                                  name={`quantity-${line().key}`}
+                                  required
+                                  type="number"
+                                  inputmode="numeric"
+                                  min={1}
+                                  step={1}
+                                  value={line().quantity || ''}
+                                  onInput={(event) => {
+                                    const input = event.currentTarget;
+                                    setDraft((draft) => {
+                                      draft.lines[index()].quantity = input.valueAsNumber;
+                                    });
+                                  }}
+                                />
+                                <Button
+                                  type="button"
+                                  class="secondary"
+                                  disabled={props.busy}
+                                  aria-label={`Increase quantity for item ${index() + 1}`}
+                                  onClick={() => {
+                                    setDraft((draft) => {
+                                      draft.lines[index()].quantity = (line().quantity || 0) + 1;
+                                    });
+                                  }}
+                                >
+                                  +
+                                </Button>
+                              </div>
+                            </div>
+                            <Show when={variant()}>
+                              {(item) => (
+                                <div class="order-line-price">
+                                  <strong>
+                                    {money(
+                                      lineSubtotal(line().quantity || 0, item().price),
+                                      currency(),
+                                      numberFormat(),
+                                    )}
+                                  </strong>
+                                  <span class="muted">
+                                    {money(item().price, currency(), numberFormat())} each
+                                  </span>
+                                </div>
                               )}
-                            </div>
+                            </Show>
                           </div>
-                          {draft.lines.length > 1 && (
-                            <Button
-                              type="button"
-                              class="secondary"
-                              disabled={busy}
-                              aria-label={`Remove item ${index + 1}`}
-                              onClick$={() => {
-                                draft.lines = draft.lines.filter((entry) => entry.key !== line.key);
-                              }}
-                              icon="close"
-                              mobileIconOnly
-                              label="Remove"
-                            />
+                          {variant() && (
+                            <p class={shortage() ? 'negative' : 'muted'}>
+                              {available()} available
+                              {shortage() ? ' · More stock is needed before confirmation.' : ''}
+                            </p>
                           )}
                         </div>
-                        <SelectField
-                          label={`Product / variant ${index + 1}`}
-                          placeholder="Search product or SKU"
-                          value={line.variantId}
-                          disabled={busy}
-                          options={activeVariants.map((choice) => ({
-                            value: choice.id,
-                            image: products.get(choice.productId)?.image,
-                            imageName: products.get(choice.productId)?.name || 'Product',
-                            label: `${products.get(choice.productId)?.name ?? ''} · ${choice.optionValues || 'Default'} · ${choice.sku} · ${money(choice.price, currency, numberFormat)}`,
-                            disabled: draft.lines.some(
-                              (other) => other.key !== line.key && other.variantId === choice.id,
-                            ),
-                          }))}
-                          onChange$={(value) => {
-                            line.variantId = value;
-                          }}
-                        />
-                        <div class="order-line-controls">
-                          <div class="field">
-                            <label for={`order-quantity-${line.key}`}>Quantity</label>
-                            <div class="quantity-stepper">
-                              <Button
-                                type="button"
-                                class="secondary"
-                                disabled={busy || !(line.quantity > 1)}
-                                aria-label={`Decrease quantity for item ${index + 1}`}
-                                onClick$={() => {
-                                  line.quantity = Math.max(1, line.quantity - 1);
-                                }}
-                              >
-                                −
-                              </Button>
-                              <Input
-                                id={`order-quantity-${line.key}`}
-                                name={`quantity-${line.key}`}
-                                required
-                                type="number"
-                                inputMode="numeric"
-                                min={1}
-                                step={1}
-                                value={line.quantity || ''}
-                                onInput$={(_, input) => {
-                                  line.quantity = input.valueAsNumber;
-                                }}
-                              />
-                              <Button
-                                type="button"
-                                class="secondary"
-                                disabled={busy}
-                                aria-label={`Increase quantity for item ${index + 1}`}
-                                onClick$={() => {
-                                  line.quantity = (line.quantity || 0) + 1;
-                                }}
-                              >
-                                +
-                              </Button>
-                            </div>
-                          </div>
-                          {variant && (
-                            <div class="order-line-price">
-                              <strong>
-                                {money(
-                                  lineSubtotal(line.quantity || 0, variant.price),
-                                  currency,
-                                  numberFormat,
-                                )}
-                              </strong>
-                              <span class="muted">{money(variant.price, currency, numberFormat)} each</span>
-                            </div>
-                          )}
-                        </div>
-                        {variant && (
-                          <p class={shortage ? 'negative' : 'muted'}>
-                            {available} available
-                            {shortage ? ' · More stock is needed before confirmation.' : ''}
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })}
+                      );
+                    }}
+                  </For>
                   <div class="row">
                     <Button
                       type="button"
                       class="secondary"
-                      disabled={busy || draft.lines.length >= activeVariants.length}
-                      onClick$={() => {
-                        draft.lines.push({ key: nextLineKey.value++, variantId: '', quantity: 1 });
+                      disabled={props.busy || draft.lines.length >= activeVariants().length}
+                      onClick={() => {
+                        setDraft((draft) => {
+                          draft.lines.push({ key: nextLineKey++, variantId: '', quantity: 1 });
+                        });
                       }}
                       icon="plus"
                       label="Add item"
@@ -393,93 +454,109 @@ export const CreateOrder = component$<OrdersProps>(({ data, busy, onCommit$, sav
                   </div>
                 </>
               )}
-            </Accordion.Content>
-          </Accordion.Item>
-          <Accordion.Item open value="payment" bind:open={paymentSectionOpen} class="panel form-section">
-            <Accordion.Header>
-              <Accordion.Trigger type="button" class="form-section-trigger">
-                <span>Payment, discount and shipping</span>
-                <span class="form-section-summary">{draft.paymentStatus}</span>
-                <span class="control-chevron" aria-hidden="true" />
-              </Accordion.Trigger>
-            </Accordion.Header>
-            <Accordion.Content class="form-section-content">
+            </div>
+          </details>
+          <details
+            open={paymentSectionOpen()}
+            onToggle={(event) => {
+              setPaymentSectionOpen(event.currentTarget.open);
+            }}
+            class="panel form-section"
+          >
+            <summary class="form-section-trigger">
+              <span>Payment, discount and shipping</span>
+              <span class="form-section-summary">{draft.paymentStatus}</span>
+              <span class="control-chevron" aria-hidden="true" />
+            </summary>
+            <div class="form-section-content">
               <div class="form-grid">
                 <SelectField
                   label="Payment status"
                   value={draft.paymentStatus}
-                  onChange$={(value) => {
-                    draft.paymentStatus = value as PaymentStatus;
+                  onChange={(value) => {
+                    setDraft((draft) => {
+                      draft.paymentStatus = value as PaymentStatus;
+                    });
                   }}
                   options={PAYMENT_STATUSES.map((value) => ({ value, label: value }))}
                 />
                 <label class="field">
-                  Discount ({currency})
+                  Discount ({currency()})
                   <Input
                     type="number"
-                    inputMode="decimal"
+                    inputmode="decimal"
                     step="any"
                     placeholder="0"
                     value={draft.discount}
-                    onInput$={(_, input) => {
-                      draft.discount = input.value === '' ? '' : input.valueAsNumber;
+                    onInput={(event) => {
+                      const input = event.currentTarget;
+                      setDraft((draft) => {
+                        draft.discount = input.value === '' ? '' : input.valueAsNumber;
+                      });
                     }}
                   />
                 </label>
-                {shippingOptions.length > 0 ? (
+                {shipping().shippingOptions.length > 0 ? (
                   <SelectField
                     label="Shipping option"
                     value={draft.shippingOptionId}
                     required
                     placeholder="Choose shipping"
-                    options={shippingOptions.map((option) => ({
+                    options={shipping().shippingOptions.map((option) => ({
                       value: option.id,
-                      label: `${option.name} · ${money(option.rate, currency, numberFormat)}`,
+                      label: `${option.name} · ${money(option.rate, currency(), numberFormat())}`,
                     }))}
-                    onChange$={(value) => {
-                      draft.shippingOptionId = value;
+                    onChange={(value) => {
+                      setDraft((draft) => {
+                        draft.shippingOptionId = value;
+                      });
                     }}
                   />
                 ) : (
                   <label class="field">
-                    Shipping charge ({currency})
+                    Shipping charge ({currency()})
                     <Input
                       type="number"
-                      inputMode="decimal"
+                      inputmode="decimal"
                       step="any"
                       placeholder="0"
                       value={draft.shippingCharge}
-                      onInput$={(_, input) => {
-                        draft.shippingCharge = input.value === '' ? '' : input.valueAsNumber;
-                        draft.shippingOptionId = '';
+                      onInput={(event) => {
+                        const input = event.currentTarget;
+                        setDraft((draft) => {
+                          draft.shippingCharge = input.value === '' ? '' : input.valueAsNumber;
+                        });
+                        setDraft((draft) => {
+                          draft.shippingOptionId = '';
+                        });
                       }}
                     />
                   </label>
                 )}
-                {shippingError && (
+                {shipping().shippingError && (
                   <p class="notice error" role="alert">
-                    {shippingError} Update shipping options in Settings.
+                    {shipping().shippingError} Update shipping options in Settings.
                   </p>
                 )}
               </div>
-            </Accordion.Content>
-          </Accordion.Item>
-        </Accordion.Root>
+            </div>
+          </details>
+        </div>
         <ActionBar label="Order actions" class="order-save-bar">
-          {error.value && (
+          {error() && (
             <p class="notice error order-save-error" role="alert">
-              {error.value}
+              {error()}
             </p>
           )}
-          {!error.value && saveError && <p class="notice error order-save-error">{saveError}</p>}
+          {!error() && props.saveError && <p class="notice error order-save-error">{props.saveError}</p>}
           <div class="order-save-total">
-            <span class="muted">Total · {quantityLabel(totalUnits)}</span>
-            <strong>{money(draftTotal, currency, numberFormat)}</strong>
+            <span class="muted">Total · {quantityLabel(totalUnits())}</span>
+            <strong>{money(draftTotal(), currency(), numberFormat())}</strong>
           </div>
           <Button
             class="secondary"
-            disabled={busy}
-            onClick$={close$}
+            disabled={props.busy}
+            onClick={close}
             mobileIconOnly
             icon="close"
             label="Cancel"
@@ -487,13 +564,13 @@ export const CreateOrder = component$<OrdersProps>(({ data, busy, onCommit$, sav
           <Button
             type="submit"
             class="primary"
-            disabled={busy || !activeVariants.length}
+            disabled={props.busy || !activeVariants().length}
             mobileIconOnly
             icon="save"
-            label={busy ? 'Saving…' : 'Create draft'}
+            label={props.busy ? 'Saving…' : 'Create draft'}
           />
         </ActionBar>
       </form>
     </div>
   );
-});
+}

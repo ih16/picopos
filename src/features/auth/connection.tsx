@@ -1,12 +1,6 @@
-import {
-  component$,
-  Slot,
-  useContext,
-  useSignal,
-  useVisibleTask$,
-  type QRL,
-  type Signal,
-} from '@builder.io/qwik';
+import type { JSX } from '@solidjs/web';
+import { createEffect, createMemo, createSignal, useContext } from 'solid-js';
+
 import {
   getAccessToken,
   isGoogleConfigured,
@@ -22,77 +16,81 @@ import { ReconnectContext } from './reconnect-context';
 
 interface GoogleConnectionProps {
   saved?: SpreadsheetSelection;
-  pickerActive?: Signal<boolean>;
+  onPickerActiveChange?: (active: boolean) => void;
   busy?: boolean;
   offline?: boolean;
   error?: string;
-  onSelect$: QRL<(selection: SpreadsheetSelection) => void | Promise<void>>;
+  onSelect: (selection: SpreadsheetSelection) => void | Promise<void>;
 }
 
 type ConnectionProps = GoogleConnectionProps &
   (
-    | { reconnectOnly: true; onDismiss$?: QRL<() => void> }
+    | { reconnectOnly: true; onDismiss?: () => void }
     | {
         reconnectOnly?: false;
         authorized?: boolean;
         reauthorizing?: boolean;
-        onDemo$?: QRL<() => void | Promise<void>>;
+        onDemo?: () => void | Promise<void>;
       }
   );
 
-export const ReconnectNotice = component$(() => {
-  const { saved, expired, dismissed, busy, error, onReconnect$ } = useContext(ReconnectContext);
-  if (!expired.value || !saved.value || dismissed.value) return null;
+export function ReconnectNotice() {
+  const { saved, expired, dismissed, dismiss, busy, error, onReconnect } = useContext(ReconnectContext);
   return (
-    <Connection
-      reconnectOnly
-      onDismiss$={() => {
-        dismissed.value = true;
-      }}
-      saved={saved.value}
-      busy={busy.value}
-      error={error.value}
-      onSelect$={onReconnect$}
-    />
+    <>
+      {expired() && saved() && !dismissed() && (
+        <Connection
+          reconnectOnly
+          onDismiss={dismiss}
+          saved={saved()}
+          busy={busy()}
+          error={error()}
+          onSelect={onReconnect}
+        />
+      )}
+    </>
   );
-});
+}
 
-export const Connection = component$<ConnectionProps>((props) => {
-  const connectButton = useSignal<HTMLButtonElement>();
-  const pickerButton = useSignal<HTMLButtonElement>();
-  const createButton = useSignal<HTMLButtonElement>();
-  const shopName = useSignal('');
-  const accountButton = useSignal<HTMLButtonElement>();
-  const ready = useSignal(false);
-  const pending = useSignal(false);
-  const error = useSignal('');
-  const loadingFailed = useSignal(false);
-  const loadAttempt = useSignal(0);
+export const Connection = (props: ConnectionProps & { children?: JSX.Element }) => {
+  const [connectButton, setConnectButton] = createSignal<HTMLButtonElement>();
+  const [pickerButton, setPickerButton] = createSignal<HTMLButtonElement>();
+  const [createButton, setCreateButton] = createSignal<HTMLButtonElement>();
+  const [shopName, setShopName] = createSignal('');
+  const [accountButton, setAccountButton] = createSignal<HTMLButtonElement>();
+  const [ready, setReady] = createSignal(false);
+  const [pending, setPending] = createSignal(false);
+  const [error, setError] = createSignal('');
+  const [loadingFailed, setLoadingFailed] = createSignal(false);
+  const [loadAttempt, setLoadAttempt] = createSignal(0);
 
   // Google must open its OAuth window synchronously from a native click.
-  useVisibleTask$(
-    ({ track, cleanup }) => {
-      const connect = track(() => connectButton.value);
-      const choose = track(() => pickerButton.value);
-      const create = track(() => createButton.value);
-      const account = track(() => accountButton.value);
-      track(() => loadAttempt.value);
-      const offline = track(() => props.offline);
+  createEffect(
+    () =>
+      [
+        connectButton(),
+        pickerButton(),
+        createButton(),
+        accountButton(),
+        loadAttempt(),
+        props.offline,
+      ] as const,
+    ([connect, choose, create, account, , offline]) => {
       if (!isGoogleConfigured || offline || (!connect && !choose && !create && !account)) return;
 
       const controller = new AbortController();
       const { signal } = controller;
-      ready.value = false;
-      loadingFailed.value = false;
+      setReady(false);
+      setLoadingFailed(false);
       const select = async (action: 'saved' | 'picker' | 'account' | 'create') => {
-        if (!ready.value || pending.value || props.busy) return;
-        pending.value = true;
-        error.value = '';
+        if (!ready() || pending() || props.busy) return;
+        setPending(true);
+        setError('');
         try {
           const cachedToken = props.reconnectOnly || action === 'account' ? undefined : getAccessToken();
           const token = cachedToken ?? (await requestGoogleAccess(signal, action !== 'saved'));
           if (signal.aborted) return;
-          if (action === 'picker' && props.pickerActive) {
+          if (action === 'picker' && props.onPickerActiveChange) {
             // Native modal dialogs sit above Google's picker. Wait for the welcome
             // dialog to leave the top layer before opening the file chooser.
             const dialog = choose?.closest('dialog');
@@ -106,7 +104,7 @@ export const Connection = component$<ConnectionProps>((props) => {
               dialog.addEventListener('close', finish, { once: true });
               signal.addEventListener('abort', finish, { once: true });
             });
-            props.pickerActive.value = true;
+            props.onPickerActiveChange(true);
             await closed;
             if (signal.aborted) return;
           }
@@ -114,15 +112,15 @@ export const Connection = component$<ConnectionProps>((props) => {
             action === 'picker'
               ? await pickSpreadsheet(token, signal)
               : action === 'create'
-                ? await createSpreadsheet(token, shopName.value)
+                ? await createSpreadsheet(token, shopName())
                 : props.saved;
-          if (!signal.aborted && selection) await props.onSelect$(selection);
+          if (!signal.aborted && selection) await props.onSelect(selection);
         } catch (cause) {
           if (!signal.aborted)
-            error.value = cause instanceof Error ? cause.message : 'Unable to open the workbook.';
+            setError(cause instanceof Error ? cause.message : 'Unable to open the workbook.');
         } finally {
-          if (props.pickerActive) props.pickerActive.value = false;
-          pending.value = false;
+          if (props.onPickerActiveChange) props.onPickerActiveChange(false);
+          setPending(false);
         }
       };
 
@@ -145,62 +143,63 @@ export const Connection = component$<ConnectionProps>((props) => {
 
       void prepareGoogle()
         .then(() => {
-          if (!signal.aborted) ready.value = true;
+          if (!signal.aborted) setReady(true);
         })
         .catch((cause: unknown) => {
           if (signal.aborted) return;
-          loadingFailed.value = true;
-          error.value = cause instanceof Error ? cause.message : 'Google authorization could not load.';
+          setLoadingFailed(true);
+          setError(cause instanceof Error ? cause.message : 'Google authorization could not load.');
         });
 
-      cleanup(() => {
+      return () => {
         controller.abort();
         connect?.removeEventListener('click', reconnect);
         choose?.removeEventListener('click', openPicker);
         create?.removeEventListener('click', createWorkbook);
         account?.removeEventListener('click', chooseAccount);
-      });
+      };
     },
-    { strategy: 'document-ready' },
   );
 
-  const busy = pending.value || props.busy;
-  const disabled = !ready.value || busy || props.offline;
-  const reconnectOnly = props.reconnectOnly;
-  const authorized = !reconnectOnly && props.authorized;
-  const canReconnect = props.saved && !authorized && (reconnectOnly || !props.reauthorizing);
+  const busy = createMemo(() => pending() || props.busy);
+  const disabled = createMemo(() => !ready() || busy() || props.offline);
+
+  const authorized = createMemo(() => !props.reconnectOnly && props.authorized);
+  const canReconnect = createMemo(
+    () => props.saved && !authorized() && (props.reconnectOnly || !props.reauthorizing),
+  );
 
   return (
     <Panel
-      class={['stack', reconnectOnly && 'reconnect-notice reconnect-toast']}
+      class={['stack', props.reconnectOnly && 'reconnect-notice reconnect-toast']}
       role="region"
       aria-label="Google Sheets connection"
     >
-      {reconnectOnly && (
+      {props.reconnectOnly && (
         <Button
           unstyled
           class="utility-button toast-close"
           aria-label="Dismiss reconnect notification"
-          onClick$={props.onDismiss$}
+          onClick={props.onDismiss}
         >
           <Icon name="close" />
         </Button>
       )}
-      {reconnectOnly ? (
+      {props.reconnectOnly ? (
         <p role="status">
           <strong>Reconnect to Google Sheets.</strong> You can keep saving changes on this device.
         </p>
       ) : (
         <div>
           <p class="eyebrow">Google Sheets</p>
-          <h2>{authorized ? 'Workbook connection' : 'Connect a workbook'}</h2>
+          <h2>{authorized() ? 'Workbook connection' : 'Connect a workbook'}</h2>
           <p class="muted">Sign in with the Google account you use for your shop.</p>
         </div>
       )}
 
-      {!reconnectOnly && props.saved && (
+      {!props.reconnectOnly && props.saved && (
         <div class="notice">
-          {authorized ? 'Connected to ' : 'Saved workbook: '}
+          {authorized() ? 'Connected to ' : 'Saved workbook: '}
           <strong>{props.saved.name}</strong>
         </div>
       )}
@@ -213,31 +212,31 @@ export const Connection = component$<ConnectionProps>((props) => {
           You’re offline. Connect to the internet to open a Google workbook.
         </p>
       )}
-      {(error.value || props.error) && (
+      {(error() || props.error) && (
         <p class="notice error" role="alert">
-          {error.value || props.error}
+          {error() || props.error}
         </p>
       )}
 
-      {((isGoogleConfigured && canReconnect) || loadingFailed.value) && (
+      {((isGoogleConfigured && canReconnect()) || loadingFailed()) && (
         <div class="row">
-          {isGoogleConfigured && canReconnect && (
-            <Button type="button" elementRef={connectButton} disabled={disabled}>
-              {reconnectOnly ? 'Reconnect' : 'Reconnect saved workbook'}
+          {isGoogleConfigured && canReconnect() && (
+            <Button type="button" ref={setConnectButton} disabled={disabled()}>
+              {props.reconnectOnly ? 'Reconnect' : 'Reconnect saved workbook'}
             </Button>
           )}
-          {isGoogleConfigured && canReconnect && (
-            <Button type="button" class="secondary" elementRef={accountButton} disabled={disabled}>
+          {isGoogleConfigured && canReconnect() && (
+            <Button type="button" class="secondary" ref={setAccountButton} disabled={disabled()}>
               Use another Google account
             </Button>
           )}
-          {loadingFailed.value && (
+          {loadingFailed() && (
             <Button
               type="button"
               class="secondary"
-              onClick$={() => {
-                error.value = '';
-                loadAttempt.value += 1;
+              onClick={() => {
+                setError('');
+                setLoadAttempt((v) => v + 1);
               }}
             >
               Retry Google setup
@@ -246,7 +245,7 @@ export const Connection = component$<ConnectionProps>((props) => {
         </div>
       )}
 
-      {isGoogleConfigured && !reconnectOnly && (
+      {isGoogleConfigured && !props.reconnectOnly && (
         <div class="workbook-options">
           <details class="workbook-create">
             <summary class="workbook-option">
@@ -259,17 +258,25 @@ export const Connection = component$<ConnectionProps>((props) => {
             <div class="workbook-create-fields">
               <label class="field">
                 <span>Shop name</span>
-                <input type="text" bind:value={shopName} disabled={disabled} placeholder="My shop" />
+                <input
+                  type="text"
+                  value={shopName()}
+                  onInput={(event) => {
+                    setShopName(event.currentTarget.value);
+                  }}
+                  disabled={disabled()}
+                  placeholder="My shop"
+                />
               </label>
               <p class="muted workbook-filename">
-                File name: <strong>picopos · {shopName.value.trim() || 'My shop'}</strong>
+                File name: <strong>picopos · {shopName().trim() || 'My shop'}</strong>
               </p>
-              <Button type="button" elementRef={createButton} disabled={disabled}>
+              <Button type="button" ref={setCreateButton} disabled={disabled()}>
                 Create workbook
               </Button>
             </div>
           </details>
-          <Button unstyled class="workbook-option" elementRef={pickerButton} disabled={disabled}>
+          <Button unstyled class="workbook-option" ref={setPickerButton} disabled={disabled()}>
             <Icon name="orders" />
             <span>
               <strong>{props.saved ? 'Choose another workbook' : 'Choose an existing workbook'}</strong>
@@ -281,33 +288,33 @@ export const Connection = component$<ConnectionProps>((props) => {
         </div>
       )}
 
-      <Slot />
-      {isGoogleConfigured && !props.offline && !ready.value && !loadingFailed.value && (
+      {props.children}
+      {isGoogleConfigured && !props.offline && !ready() && !loadingFailed() && (
         <p class="muted" role="status">
           Loading Google authorization…
         </p>
       )}
-      {pending.value && (
+      {pending() && (
         <p class="muted" role="status">
           Connecting to Google Sheets…
         </p>
       )}
-      {!reconnectOnly && props.onDemo$ && (
+      {!props.reconnectOnly && props.onDemo && (
         <div class="workbook-demo">
           <div>
             <strong>Just looking?</strong>
             <p class="muted">Explore with sample data. No sign-in needed.</p>
           </div>
-          <Button type="button" class="secondary" onClick$={props.onDemo$} disabled={busy}>
+          <Button type="button" class="secondary" onClick={props.onDemo} disabled={busy()}>
             Try the demo
           </Button>
         </div>
       )}
-      {!reconnectOnly && (
+      {!props.reconnectOnly && (
         <p class="muted">
           <a href="/privacy.html">Privacy policy</a> · <a href="/terms.html">Terms of service</a>
         </p>
       )}
     </Panel>
   );
-});
+};

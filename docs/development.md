@@ -1,6 +1,6 @@
 # Development setup
 
-picopos runs as a static Qwik app. Local development needs Node.js 22.12 or newer and npm; Make is optional. There is no application backend, database server, Docker stack, or service-account setup to run. Google connection is optional for demo development.
+picopos runs as a static SolidJS app. Local development needs Node.js 22.12 or newer and npm; Make is optional. There is no application backend, database server, Docker stack, or service-account setup to run. Google connection is optional for demo development.
 
 ## First run
 
@@ -19,24 +19,17 @@ For Google-connected development, create `.env.local` from `.env.example` if it 
 
 ## Environment variables
 
-| Variable                     | Purpose                                                                    | Required for                             |
-| ---------------------------- | -------------------------------------------------------------------------- | ---------------------------------------- |
-| `VITE_GOOGLE_CLIENT_ID`      | Google OAuth Web application client ID                                     | Google sign-in                           |
-| `VITE_GOOGLE_API_KEY`        | Restricted Google Picker API key                                           | Workbook picker                          |
-| `VITE_GOOGLE_PROJECT_NUMBER` | Numeric Google Cloud project number, not project ID                        | Workbook picker                          |
-| `PUBLIC_ORIGIN`              | Origin passed to the static adapter; defaults to `https://www.picopos.app` | Builds for a different deployment origin |
+| Variable                     | Purpose                                             | Required for    |
+| ---------------------------- | --------------------------------------------------- | --------------- |
+| `VITE_GOOGLE_CLIENT_ID`      | Google OAuth Web application client ID              | Google sign-in  |
+| `VITE_GOOGLE_API_KEY`        | Restricted Google Picker API key                    | Workbook picker |
+| `VITE_GOOGLE_PROJECT_NUMBER` | Numeric Google Cloud project number, not project ID | Workbook picker |
 
 The `VITE_*` values are read in `src/infrastructure/google/google.ts` and bundled into frontend assets. They are public identifiers, not a place for client secrets or service-account credentials. Apply the Google restrictions described in setup. `.env.local` and other private env files are ignored by Git; `.env.example` is the tracked template.
 
-Vite loads `.env` and `.env.local`, plus files for the selected mode. The development script explicitly uses mode `ssr`, so its mode-specific files are `.env.ssr` and `.env.ssr.local`. Builds use the default production mode, with `.env.production` and `.env.production.local`. Mode-specific values override generic files, and variables already set in the shell take priority. `.env.local` is the simplest shared local configuration for both development and builds.
+Vite loads `.env` and `.env.local`, plus files for the selected mode. Development uses mode-specific files `.env.development` and `.env.development.local`. Builds use the default production mode, with `.env.production` and `.env.production.local`. Mode-specific values override generic files, and variables already set in the shell take priority. `.env.local` is the simplest shared local configuration for both development and builds.
 
-`PUBLIC_ORIGIN` is read directly from `process.env` in `adapters/static/vite.config.ts`. Supply it through the shell or CI environment; placing it only in a Vite env file does not configure the current adapter:
-
-```sh
-PUBLIC_ORIGIN=https://www.picopos.app make build
-```
-
-Restart development after changing environment configuration. Rebuild to update frontend values in `dist/`; setting new variables while serving an existing build does not rewrite that build. `PUBLIC_ORIGIN` does not change Vite's listening port or add an authorized Google origin.
+Restart development after changing environment configuration. Rebuild to update frontend values in `dist/`; setting new variables while serving an existing build does not rewrite that build.
 
 ## Makefile commands
 
@@ -74,14 +67,13 @@ make build
 make preview
 ```
 
-Preview normally serves `http://localhost:4173`. For a different preview origin, use matching build and preview settings:
+Preview normally serves `http://localhost:4173`. For a different preview origin, set the preview port:
 
 ```sh
-PUBLIC_ORIGIN=http://localhost:4174 make build
 make preview ARGS="--port 4174 --strictPort"
 ```
 
-The build produces `dist/` for hosting and `server/` as intermediate static-generation output. Edit source files, not these generated directories. Preview serves static assets and does not provide a production API server.
+The build writes the static site to `dist/`. Preview serves static assets and does not provide a production API server.
 
 Offline shell testing requires the production build, a secure context, and a successful online visit that installs the worker. Connected workbook persistence also requires OPFS, writable file handles, and Web Locks. The development server deliberately unregisters a previous offline worker on its origin. Close all older preview tabs to allow a new worker to activate; avoid clearing site data while changes are queued. See [troubleshooting](troubleshooting.md#browser-storage-and-offline-opening).
 
@@ -101,3 +93,7 @@ node --experimental-strip-types --disable-warning=ExperimentalWarning --test tes
 ```
 
 Use [the design system](../DESIGN.md) for UI work and [the workbook reference](workbook.md) before changing persisted columns or migration behavior.
+
+## Browser checks
+
+Install the test browser once with `npx playwright install chromium`. Run `npm run test:browser` to build the site and exercise the production preview in isolated browser sessions. Set `PLAYWRIGHT_CHANNEL=chrome` to use an installed Google Chrome.

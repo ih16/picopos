@@ -417,7 +417,7 @@ textarea {
 .data-table th,
 .data-table td {
   padding: 8px var(--space-3);
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid light-dark(var(--glass-border), var(--line));
 }
 .data-table th {
   color: var(--ink-muted);
@@ -469,7 +469,7 @@ textarea {
     inset: 0;
     z-index: -1;
     pointer-events: none;
-    border: 1px solid var(--line-strong);
+    border: 1px solid light-dark(var(--glass-border), var(--line-strong));
     border-radius: var(--radius-input);
     background: linear-gradient(110deg, transparent 15%, var(--glass-border) 50%, transparent 85%)
       var(--glass-soft);
@@ -497,7 +497,36 @@ textarea {
 .data-table tfoot td,
 .data-table tfoot th {
   font-weight: var(--weight-bold);
-  border-top: 1px solid var(--line);
+  border-top: 1px solid light-dark(var(--glass-border), var(--line));
+}
+/* Paint each cut across the whole row so it stays continuous between columns. */
+.data-table {
+  --table-cut-shadow: linear-gradient(
+    90deg,
+    transparent,
+    light-dark(rgb(50 65 94 / 14%), rgb(2 5 11 / 60%)) 22%,
+    light-dark(rgb(50 65 94 / 8%), rgb(2 5 11 / 38%)) 78%,
+    transparent
+  );
+  --table-cut-light: linear-gradient(
+    90deg,
+    transparent,
+    light-dark(rgb(255 255 255 / 88%), rgb(177 195 226 / 19%)) 22%,
+    light-dark(rgb(255 255 255 / 65%), rgb(177 195 226 / 11%)) 78%,
+    transparent
+  );
+}
+
+.data-table > :is(thead, tbody:not(.page-spacer), tfoot) > tr:not(.virtual-spacer) {
+  background-image: var(--table-cut-shadow), var(--table-cut-light);
+  background-size: 100% 1px;
+  background-position:
+    left bottom 1px,
+    left bottom;
+  background-repeat: no-repeat;
+}
+.data-table > :is(thead, tbody, tfoot) > tr > :is(th, td) {
+  border-block-color: transparent;
 }
 .numeric {
   text-align: right;
@@ -1046,7 +1075,7 @@ a:is(.brand, [target='_blank']) {
   }
 }
 
-/* Shared Qwik UI surfaces */
+/* Shared controls */
 .ui-modal {
   position: fixed;
   inset: 0;
@@ -1176,14 +1205,6 @@ a:is(.brand, [target='_blank']) {
   color: var(--ink);
   box-shadow: var(--shadow-panel);
 }
-/* Shared by SearchableSelect's single and multiple selection modes.
-   Translate is separate from Floating UI's positioning transform. */
-.ui-select-popover[data-exit-anchor] {
-  position: fixed !important;
-  left: var(--select-exit-left) !important;
-  top: var(--select-exit-top) !important;
-  width: var(--select-exit-width) !important;
-}
 @media (prefers-reduced-motion: no-preference) {
   .ui-select-popover {
     opacity: 0;
@@ -1233,7 +1254,7 @@ a:is(.brand, [target='_blank']) {
 .disclosure-trigger {
   font-weight: var(--weight-semibold);
 }
-.disclosure-trigger[aria-expanded='true'] .control-chevron {
+.disclosure[open] > .disclosure-trigger .control-chevron {
   transform: rotate(225deg) translateY(-2px);
 }
 .disclosure-content {
@@ -1278,7 +1299,7 @@ a:is(.brand, [target='_blank']) {
 .form-section-trigger .control-chevron {
   flex-shrink: 0;
 }
-.form-section-trigger[aria-expanded='true'] .control-chevron {
+.form-section[open] > .form-section-trigger .control-chevron {
   transform: rotate(225deg) translateY(-2px);
 }
 .form-section-content {
@@ -2356,6 +2377,9 @@ body:has(.workspace) {
 .payment-status-tiles input {
   margin: 0;
 }
+.detail-items tfoot th[scope='row'] {
+  text-align: right;
+}
 .order-detail-page > .detail-items {
   flex: 1;
 }
@@ -3187,7 +3211,7 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 9.5rem), 1fr));
   gap: 4px;
 }
-.dashboard-low-stock li {
+.dashboard-low-stock li[data-level] {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-content: start;
@@ -3951,6 +3975,29 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
   .workspace-sidebar :is(.primary-nav, .mobile-nav-more) > .nav-item {
     min-height: var(--mobile-nav-target);
   }
+  .workspace-sidebar :is(.primary-nav, .mobile-nav-more) > .nav-item.selected {
+    position: relative;
+    isolation: isolate;
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+  }
+  .workspace-sidebar :is(.primary-nav, .mobile-nav-more) > .nav-item.selected::before {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    inset: 4px 0;
+    border: 1px solid var(--glass-border);
+    border-radius: inherit;
+    background: var(--glass-raised);
+    box-shadow: var(--glass-shadow);
+    pointer-events: none;
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    .workspace-sidebar :is(.primary-nav, .mobile-nav-more) > .nav-item.selected::before {
+      background: var(--surface);
+    }
+  }
   .workspace-sidebar :is(.primary-nav, .mobile-nav-more) > .nav-item svg {
     width: 21px;
     height: 21px;
@@ -4423,4 +4470,66 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
   .filter-fields > .button {
     justify-self: end;
   }
+}
+
+/* The table itself owns scrolling so headings stay pinned across page groups. */
+.paged-viewport {
+  overflow: auto;
+  max-height: 68dvh;
+  min-height: 0;
+  overflow-anchor: none;
+}
+.scroll-rows.paged-viewport > thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface-raised);
+}
+.scroll-rows.paged-viewport > :is(thead, tbody) {
+  display: block;
+  overflow: visible;
+  scrollbar-gutter: auto;
+}
+.paged-viewport > .page-spacer,
+.paged-viewport > .page-spacer :is(tr, td) {
+  display: block;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.paged-group {
+  display: grid;
+  gap: var(--space-3);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.paged-group:not(:last-child) {
+  padding-bottom: var(--space-3);
+}
+.paged-viewport:has(.paged-group) {
+  gap: 0;
+  align-content: start;
+}
+.product-list-scroll-frame > .paged-viewport {
+  max-height: 74dvh;
+  overflow-y: auto;
+}
+
+.data-table.paged-viewport {
+  display: block;
+}
+.ui-select-item > span:first-of-type {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.dashboard-low-stock:has(.paged-group) {
+  display: block;
+}
+.dashboard-low-stock .paged-group {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 9.5rem), 1fr));
+  gap: 4px;
 }

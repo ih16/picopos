@@ -40,7 +40,7 @@
       ]
     },
     {
-      "source": "/:file(index.html|q-data.json|picopos-service-worker.js|piecom-service-worker.js)",
+      "source": "/:file(index.html|picopos-service-worker.js|piecom-service-worker.js)",
       "headers": [
         {
           "key": "Cache-Control",
@@ -49,7 +49,7 @@
       ]
     },
     {
-      "source": "/:directory(build|assets)/:path*",
+      "source": "/assets/:path*",
       "headers": [
         {
           "key": "Cache-Control",

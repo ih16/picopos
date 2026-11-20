@@ -1,11 +1,13 @@
-import { createContextId, type QRL, type Signal } from '@builder.io/qwik';
+import { createContext, type Accessor } from 'solid-js';
+
 import type { SpreadsheetSelection } from '../../infrastructure/google/google';
 
-export const ReconnectContext = createContextId<{
-  saved: Signal<SpreadsheetSelection | undefined>;
-  expired: Signal<boolean>;
-  dismissed: Signal<boolean>;
-  busy: Signal<boolean>;
-  error: Signal<string>;
-  onReconnect$: QRL<(selection: SpreadsheetSelection) => void | Promise<void>>;
-}>('picopos.google-reconnect');
+export const ReconnectContext = createContext<{
+  saved: Accessor<SpreadsheetSelection | undefined>;
+  expired: Accessor<boolean>;
+  dismissed: Accessor<boolean>;
+  dismiss: () => void;
+  busy: Accessor<boolean>;
+  error: Accessor<string>;
+  onReconnect: (selection: SpreadsheetSelection) => void | Promise<void>;
+}>();

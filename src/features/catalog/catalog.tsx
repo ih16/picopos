@@ -1,9 +1,7 @@
-import { ListFilters } from '../../shared/ui/list-filters';
-import { decimalAmount } from '../../shared/lib/format';
-import { workbookCurrency, workbookNumberFormat } from '../../domain/settings';
-import { $, component$, useContext, useSignal, useTask$, type QRL } from '@builder.io/qwik';
-import { Collapsible } from '@qwik-ui/headless';
+import { createMemo, createSignal, For, Show, useContext } from 'solid-js';
+
 import { ScreenNavigation } from '../../app/navigation/screen-navigation';
+import { workbookCurrency, workbookNumberFormat } from '../../domain/settings';
 import {
   categoryPath,
   makeId,
@@ -14,20 +12,19 @@ import {
 } from '../../domain/workbook';
 import {
   ActionBar,
-  EditorForm,
-  Badge,
   Button,
+  EditorForm,
   Input,
   Modal,
   MultiSelect,
   Panel,
   SelectField,
-  Table,
   Switch,
   Textarea,
 } from '../../shared/ui/controls';
+import { PagedRows } from '../../shared/ui/paged-rows';
 import { Icon } from '../../shared/ui/icon';
-import { ProductLabel, ProductPhoto } from '../../shared/ui/product-thumbnail';
+import { ListFilters } from '../../shared/ui/list-filters';
 import { ReconnectNotice } from '../auth/connection';
 import {
   newProduct,
@@ -40,253 +37,275 @@ import {
   type ProductOption,
   type VariantOption,
 } from './catalog-options';
+import { ProductCard } from './product-card';
 import { ProductImageInput } from './product-photo';
 
-type Props = {
+type CatalogProps = {
   data: WorkbookData;
   busy: boolean;
   error?: string;
-  onCommit$: QRL<(changes: RowChange[], editBase?: RowChange[]) => Promise<boolean>>;
+  onCommit: (changes: RowChange[], editBase?: RowChange[]) => Promise<boolean>;
 };
-export const Catalog = component$<Props>(({ data, busy, error, onCommit$ }) => {
-  const { route, navigate$ } = useContext(ScreenNavigation);
-  const subpage = useSignal<'products' | 'categories'>('products');
-  useTask$(({ track }) => {
-    const screen = track(() => route.value);
-    if (screen.page === 'Catalog') subpage.value = screen.catalogPage;
-  });
-  const categorySearch = useSignal('');
-  const categoryParent = useSignal('');
-  const search = useSignal('');
-  const category = useSignal<string[]>([]);
-  const status = useSignal<string[]>([]);
-  const editor = useSignal<'product' | 'variant' | 'category'>('product');
-  const editorOpen = useSignal(false);
-  const attemptedSave = useSignal(false);
-  const editBase = useSignal<RowChange[]>([]);
-  const product = useSignal(newProduct(''));
-  const variant = useSignal(newVariant(''));
-  const categoryName = useSignal('');
-  const categoryId = useSignal('');
-  const firstSku = useSignal('');
-  const firstPrice = useSignal(0);
-  const productOptions = useSignal<ProductOption[]>([]);
-  const variantOptions = useSignal<VariantOption[]>([]);
-  const optionError = useSignal('');
-  const productEditKey = useSignal('');
-  const photoProcessing = useSignal(false);
+export function Catalog(props: CatalogProps) {
+  const { route, navigate } = useContext(ScreenNavigation);
+  const subpage = () => route().catalogPage;
+  const [categorySearch, setCategorySearch] = createSignal('');
+  const [categoryParent, setCategoryParent] = createSignal('');
+  const [search, setSearch] = createSignal('');
+  const [category, setCategory] = createSignal<string[]>([]);
+  const [status, setStatus] = createSignal<string[]>([]);
+  const [editor, setEditor] = createSignal<'product' | 'variant' | 'category'>('product');
+  const [editorOpen, setEditorOpen] = createSignal(false);
+  const [attemptedSave, setAttemptedSave] = createSignal(false);
+  const [editBase, setEditBase] = createSignal<RowChange[]>([]);
+  const [product, setProduct] = createSignal(newProduct(''));
+  const [variant, setVariant] = createSignal(newVariant(''));
+  const [categoryName, setCategoryName] = createSignal('');
+  const [categoryId, setCategoryId] = createSignal('');
+  const [firstSku, setFirstSku] = createSignal('');
+  const [firstPrice, setFirstPrice] = createSignal(0);
+  const [productOptions, setProductOptions] = createSignal<ProductOption[]>([]);
+  const [variantOptions, setVariantOptions] = createSignal<VariantOption[]>([]);
+  const [optionError, setOptionError] = createSignal('');
+  const [productEditKey, setProductEditKey] = createSignal('');
+  const [photoProcessing, setPhotoProcessing] = createSignal(false);
 
-  const categoryNames = new Map(
-    data.Categories.map(({ id }) => [
-      id,
-      categoryPath(data.Categories, id)
-        .map((row) => row.name)
-        .join(' / '),
-    ]),
+  const categoryNames = createMemo(
+    () =>
+      new Map(
+        props.data.Categories.map(({ id }) => [
+          id,
+          categoryPath(props.data.Categories, id)
+            .map((row) => row.name)
+            .join(' / '),
+        ]),
+      ),
   );
-  const categoryOptions = data.Categories.map(({ id }) => ({
-    value: id,
-    label: categoryNames.get(id)!,
-  })).sort((a, b) => a.label.localeCompare(b.label));
-  const shownCategories = categoryOptions.filter((row) =>
-    row.label.toLowerCase().includes(categorySearch.value.trim().toLowerCase()),
+  const categoryOptions = createMemo(() =>
+    props.data.Categories.map(({ id }) => ({
+      value: id,
+      label: categoryNames().get(id)!,
+    })).sort((a, b) => a.label.localeCompare(b.label)),
   );
-  const variantsByProduct = new Map<string, Variant[]>();
-  for (const item of data.Variants) {
-    const variants = variantsByProduct.get(item.productId);
-    if (variants) variants.push(item);
-    else variantsByProduct.set(item.productId, [item]);
-  }
-  const query = search.value.trim().toLowerCase();
-  const hasFilters = Boolean(query || category.value.length || status.value.length);
-  const shown = data.Products.filter((item) => {
-    if (
-      category.value.length &&
-      !categoryPath(data.Categories, item.categoryId).some((row) => category.value.includes(row.id))
-    )
-      return false;
-    if (status.value.length && !status.value.includes(item.active ? 'active' : 'archived')) return false;
-    const variantText = (variantsByProduct.get(item.id) ?? [])
-      .map((row) => `${row.sku} ${row.optionValues}`)
-      .join(' ');
-    return !query || `${item.name} ${variantText}`.toLowerCase().includes(query);
+  const shownCategories = createMemo(() =>
+    categoryOptions().filter((row) =>
+      row.label.toLowerCase().includes(categorySearch().trim().toLowerCase()),
+    ),
+  );
+  const variantIndex = createMemo(() => {
+    const variantsByProduct = new Map<string, Variant[]>();
+    for (const item of props.data.Variants) {
+      const variants = variantsByProduct.get(item.productId);
+      if (variants) variants.push(item);
+      else variantsByProduct.set(item.productId, [item]);
+    }
+    return variantsByProduct;
   });
-  const currency = workbookCurrency(data);
-  const numberFormat = workbookNumberFormat(data);
-  const editorTitle =
-    editor.value === 'category'
-      ? categoryId.value
+  const query = createMemo(() => search().trim().toLowerCase());
+  const hasFilters = createMemo(() => Boolean(query() || category().length || status().length));
+  const [expandedIds, setExpandedIds] = createSignal<ReadonlySet<string>>(new Set());
+  function toggleProduct(id: string) {
+    setExpandedIds((previous) => {
+      const next = new Set(previous);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  const shown = createMemo(() =>
+    props.data.Products.filter((item) => {
+      if (
+        category().length &&
+        !categoryPath(props.data.Categories, item.categoryId).some((row) => category().includes(row.id))
+      )
+        return false;
+      if (status().length && !status().includes(item.active ? 'active' : 'archived')) return false;
+      const variantText = (variantIndex().get(item.id) ?? [])
+        .map((row) => `${row.sku} ${row.optionValues}`)
+        .join(' ');
+      return !query() || `${item.name} ${variantText}`.toLowerCase().includes(query());
+    }),
+  );
+  const currency = createMemo(() => workbookCurrency(props.data));
+  const numberFormat = createMemo(() => workbookNumberFormat(props.data));
+  const editorTitle = createMemo(() =>
+    editor() === 'category'
+      ? categoryId()
         ? 'Edit category'
         : 'New category'
-      : editor.value === 'variant'
-        ? variant.value.id
+      : editor() === 'variant'
+        ? variant().id
           ? 'Edit variant'
           : 'New variant'
-        : product.value.id
+        : product().id
           ? 'Edit product'
-          : 'New product';
+          : 'New product',
+  );
 
-  const clearFilters = $(() => {
-    search.value = '';
-    category.value = [];
-    status.value = [];
-  });
+  const clearFilters = () => {
+    setSearch('');
+    setCategory([]);
+    setStatus([]);
+  };
 
-  const openCategory = $((id = '', parentId = '') => {
-    const existing = data.Categories.find((row) => row.id === id);
-    editBase.value = existing ? [{ tab: 'Categories', row: existing }] : [];
-    categoryParent.value = existing?.parentId || parentId;
-    categoryId.value = id;
-    categoryName.value = existing?.name || '';
-    editor.value = 'category';
-    attemptedSave.value = false;
-    optionError.value = '';
-    editorOpen.value = true;
-  });
+  const openCategory = (id = '', parentId = '') => {
+    const existing = props.data.Categories.find((row) => row.id === id);
+    setEditBase(existing ? [{ tab: 'Categories', row: existing }] : []);
+    setCategoryParent(existing?.parentId || parentId);
+    setCategoryId(id);
+    setCategoryName(existing?.name || '');
+    setEditor('category');
+    setAttemptedSave(false);
+    setOptionError('');
+    setEditorOpen(true);
+  };
 
-  const openProduct = $((item?: Product) => {
-    editBase.value = item ? [{ tab: 'Products', row: item }] : [];
-    productEditKey.value = makeId();
-    photoProcessing.value = false;
-    product.value = item ? { ...item } : newProduct(category.value.length === 1 ? category.value[0] : '');
-    const hasVariants = Boolean(item && data.Variants.some((row) => row.productId === item.id));
-    productOptions.value = optionNamesOf(item?.optionNames ?? '').map((name) => ({
-      id: makeId(),
-      name,
-      firstValue: '',
-      saved: hasVariants,
-    }));
-    firstSku.value = '';
-    firstPrice.value = 0;
-    editor.value = 'product';
-    attemptedSave.value = false;
-    optionError.value = '';
-    editorOpen.value = true;
-  });
+  const openProduct = (item?: Product) => {
+    setEditBase(item ? [{ tab: 'Products', row: item }] : []);
+    setProductEditKey(makeId());
+    setPhotoProcessing(false);
+    setProduct(item ? { ...item } : newProduct(category().length === 1 ? category()[0] : ''));
+    const hasVariants = Boolean(item && props.data.Variants.some((row) => row.productId === item.id));
+    setProductOptions(
+      optionNamesOf(item?.optionNames ?? '').map((name) => ({
+        id: makeId(),
+        name,
+        firstValue: '',
+        saved: hasVariants,
+      })),
+    );
+    setFirstSku('');
+    setFirstPrice(0);
+    setEditor('product');
+    setAttemptedSave(false);
+    setOptionError('');
+    setEditorOpen(true);
+  };
 
-  const openVariant = $((item: Variant) => {
-    editBase.value = item.id ? [{ tab: 'Variants', row: item }] : [];
-    variant.value = {
+  const openVariant = (item: Variant) => {
+    setEditBase(item.id ? [{ tab: 'Variants', row: item }] : []);
+    setVariant({
       ...item,
       price: item.id
         ? item.price
-        : (data.Variants.find((row) => row.productId === item.productId && row.active)?.price ?? item.price),
-    };
-    const names = optionNamesOf(data.Products.find((row) => row.id === item.productId)?.optionNames ?? '');
-    variantOptions.value = readVariantOptions(names, item.optionValues);
-    editor.value = 'variant';
-    attemptedSave.value = false;
-    optionError.value = '';
-    editorOpen.value = true;
-  });
+        : (props.data.Variants.find((row) => row.productId === item.productId && row.active)?.price ??
+          item.price),
+    });
+    const names = optionNamesOf(
+      props.data.Products.find((row) => row.id === item.productId)?.optionNames ?? '',
+    );
+    setVariantOptions(readVariantOptions(names, item.optionValues));
+    setEditor('variant');
+    setAttemptedSave(false);
+    setOptionError('');
+    setEditorOpen(true);
+  };
 
-  const addOption = $(() => {
-    productOptions.value = [
-      ...productOptions.value,
-      { id: makeId(), name: '', firstValue: '', saved: false },
-    ];
-    optionError.value = '';
-  });
+  const addOption = () => {
+    setProductOptions([...productOptions(), { id: makeId(), name: '', firstValue: '', saved: false }]);
+    setOptionError('');
+  };
 
-  const closeEditor = $(() => {
-    editorOpen.value = false;
-  });
-  const saveCategory = $(async () => {
-    attemptedSave.value = true;
+  const closeEditor = () => {
+    setEditorOpen(false);
+  };
+  const saveCategory = async () => {
+    setAttemptedSave(true);
     if (
-      await onCommit$(
+      await props.onCommit(
         [
           {
             tab: 'Categories',
             row: {
-              id: categoryId.value || makeId(),
-              name: categoryName.value.trim(),
-              parentId: categoryParent.value,
+              id: categoryId() || makeId(),
+              name: categoryName().trim(),
+              parentId: categoryParent(),
             },
           },
         ],
-        editBase.value,
+        editBase(),
       )
     ) {
-      editorOpen.value = false;
+      setEditorOpen(false);
     }
-  });
+  };
 
-  const saveProduct = $(async () => {
-    if (photoProcessing.value) return;
-    attemptedSave.value = false;
-    optionError.value = '';
-    const names = productOptions.value.map(({ name }) => name.trim());
+  const saveProduct = async () => {
+    if (photoProcessing()) return;
+    setAttemptedSave(false);
+    setOptionError('');
+    const names = productOptions().map(({ name }) => name.trim());
     const namesChanged =
-      names.join(optionSeparator) !== optionNamesOf(product.value.optionNames).join(optionSeparator);
+      names.join(optionSeparator) !== optionNamesOf(product().optionNames).join(optionSeparator);
     if (namesChanged && names.some((name) => !name || name.includes('/'))) {
-      optionError.value = 'Enter one option name per field, such as Color or Size.';
+      setOptionError('Enter one option name per field, such as Color or Size.');
       return;
     }
     if (namesChanged && new Set(names.map((name) => name.toLocaleLowerCase())).size !== names.length) {
-      optionError.value = 'Give each option a different name.';
+      setOptionError('Give each option a different name.');
       return;
     }
-    const firstValues = productOptions.value.map(({ firstValue }) => firstValue.trim());
-    if (!product.value.id) {
-      optionError.value = validateOptionValues(firstValues);
-      if (optionError.value) return;
+    const firstValues = productOptions().map(({ firstValue }) => firstValue.trim());
+    if (!product().id) {
+      setOptionError(validateOptionValues(firstValues));
+      if (optionError()) return;
     }
-    attemptedSave.value = true;
-    const id = product.value.id || makeId();
+    setAttemptedSave(true);
+    const id = product().id || makeId();
     const changes: RowChange[] = [
       {
         tab: 'Products',
         row: {
-          ...product.value,
+          ...product(),
           id,
-          name: product.value.name.trim(),
-          optionNames: namesChanged ? names.join(optionSeparator) : product.value.optionNames,
+          name: product().name.trim(),
+          optionNames: namesChanged ? names.join(optionSeparator) : product().optionNames,
         },
       },
     ];
-    if (!product.value.id) {
+    if (!product().id) {
       changes.push({
         tab: 'Variants',
         row: {
           ...newVariant(id),
           id: makeId(),
-          sku: firstSku.value.trim(),
-          price: firstPrice.value,
+          sku: firstSku().trim(),
+          price: firstPrice(),
           optionValues: firstValues.join(optionSeparator),
         },
       });
     }
-    if (await onCommit$(changes, editBase.value)) editorOpen.value = false;
-  });
+    if (await props.onCommit(changes, editBase())) setEditorOpen(false);
+  };
 
-  const saveVariant = $(async () => {
-    attemptedSave.value = false;
-    optionError.value = '';
+  const saveVariant = async () => {
+    setAttemptedSave(false);
+    setOptionError('');
     const updateValues =
-      !variant.value.id ||
-      variantOptions.value.some((option) => option.value.trim() !== option.originalValue);
-    const values = variantOptions.value.map((option) => option.value.trim());
+      !variant().id || variantOptions().some((option) => option.value.trim() !== option.originalValue);
+    const values = variantOptions().map((option) => option.value.trim());
     if (updateValues && values.length) {
-      optionError.value = validateOptionValues(values);
-      if (optionError.value) return;
+      setOptionError(validateOptionValues(values));
+      if (optionError()) return;
     }
-    attemptedSave.value = true;
+    setAttemptedSave(true);
     const row = {
-      ...variant.value,
-      id: variant.value.id || makeId(),
-      sku: variant.value.sku.trim(),
-      optionValues: updateValues && values.length ? values.join(optionSeparator) : variant.value.optionValues,
+      ...variant(),
+      id: variant().id || makeId(),
+      sku: variant().sku.trim(),
+      optionValues: updateValues && values.length ? values.join(optionSeparator) : variant().optionValues,
     };
-    if (await onCommit$([{ tab: 'Variants', row }], editBase.value)) editorOpen.value = false;
-  });
+    if (await props.onCommit([{ tab: 'Variants', row }], editBase())) setEditorOpen(false);
+  };
 
-  const editorError = optionError.value || (attemptedSave.value ? error : '');
-  const saveError = editorError ? (
-    <p class="notice error" role="alert">
-      {editorError}
-    </p>
-  ) : null;
+  const editorError = createMemo(() => optionError() || (attemptedSave() ? props.error : ''));
+  const saveError = createMemo(() =>
+    editorError() ? (
+      <p class="notice error" role="alert">
+        {editorError()}
+      </p>
+    ) : null,
+  );
 
   return (
     <section class="stack catalog-page">
@@ -294,25 +313,25 @@ export const Catalog = component$<Props>(({ data, busy, error, onCommit$ }) => {
       <div class="catalog-toolbar">
         <nav class="row catalog-tabs" aria-label="Catalog pages">
           <Button
-            class={subpage.value === 'products' ? '' : 'secondary'}
-            aria-current={subpage.value === 'products' ? 'page' : undefined}
-            onClick$={() => navigate$('/catalog')}
+            class={subpage() === 'products' ? '' : 'secondary'}
+            aria-current={subpage() === 'products' ? 'page' : undefined}
+            onClick={() => navigate('/catalog')}
           >
             Products
           </Button>
           <Button
-            class={subpage.value === 'categories' ? '' : 'secondary'}
-            aria-current={subpage.value === 'categories' ? 'page' : undefined}
-            onClick$={() => navigate$('/catalog/categories')}
+            class={subpage() === 'categories' ? '' : 'secondary'}
+            aria-current={subpage() === 'categories' ? 'page' : undefined}
+            onClick={() => navigate('/catalog/categories')}
           >
             Categories
           </Button>
         </nav>
-        {subpage.value === 'products' ? (
+        {subpage() === 'products' ? (
           <>
             <ListFilters
               title="Filter products"
-              count={category.value.length + status.value.length + Number(Boolean(query))}
+              count={category().length + status().length + Number(Boolean(query()))}
               class="catalog-filters"
             >
               <label class="field catalog-search input-with-icon">
@@ -322,49 +341,51 @@ export const Catalog = component$<Props>(({ data, busy, error, onCommit$ }) => {
                   controlSize="sm"
                   type="search"
                   placeholder="Name or SKU"
-                  value={search.value}
-                  onInput$={(_, el) => (search.value = el.value)}
+                  value={search()}
+                  onInput={(event) => {
+                    setSearch(event.currentTarget.value);
+                  }}
                 />
               </label>
               <MultiSelect
                 controlSize="sm"
                 label="Category"
                 placeholder="All categories"
-                value={category.value}
-                options={categoryOptions}
-                onChange$={(value) => {
-                  category.value = value;
+                value={category()}
+                options={categoryOptions()}
+                onChange={(value) => {
+                  setCategory(value);
                 }}
               />
               <MultiSelect
                 controlSize="sm"
                 placeholder="All statuses"
                 label="Product status"
-                value={status.value}
+                value={status()}
                 options={statusOptions}
-                onChange$={(value) => {
-                  status.value = value;
+                onChange={(value) => {
+                  setStatus(value);
                 }}
               />
-              {hasFilters && (
+              {hasFilters() && (
                 <Button
                   class="secondary catalog-icon-button"
                   title="Clear filters"
                   aria-label="Clear filters"
-                  onClick$={clearFilters}
+                  onClick={clearFilters}
                 >
                   <Icon name="close" />
                 </Button>
               )}
             </ListFilters>
             <p class="sr-only" aria-live="polite">
-              {shown.length} of {data.Products.length} products
+              {shown().length} of {props.data.Products.length} products
             </p>
           </>
         ) : (
           <ListFilters
             title="Filter categories"
-            count={Number(Boolean(categorySearch.value.trim()))}
+            count={Number(Boolean(categorySearch().trim()))}
             class="catalog-filters"
           >
             <label class="field catalog-search input-with-icon">
@@ -374,488 +395,435 @@ export const Catalog = component$<Props>(({ data, busy, error, onCommit$ }) => {
                 controlSize="sm"
                 placeholder="Search categories"
                 type="search"
-                value={categorySearch.value}
-                onInput$={(_, el) => (categorySearch.value = el.value)}
+                value={categorySearch()}
+                onInput={(event) => {
+                  setCategorySearch(event.currentTarget.value);
+                }}
               />
             </label>
           </ListFilters>
         )}
       </div>
-      {!editorOpen.value && (
+      {!editorOpen() && (
         <ActionBar class="record-shortcut" label="Catalog actions">
-          {subpage.value === 'categories' ? (
-            <Button onClick$={() => openCategory()} icon="category-add" label="Add category" />
+          {subpage() === 'categories' ? (
+            <Button onClick={() => openCategory()} icon="category-add" label="Add category" />
           ) : (
-            <Button onClick$={() => openProduct()} icon="product-add" label="Add product" />
+            <Button onClick={() => openProduct()} icon="product-add" label="Add product" />
           )}
         </ActionBar>
       )}
 
-      <Modal open={editorOpen} title={editorTitle}>
-        {editorOpen.value && <ReconnectNotice q:slot="notice" />}
-        {editor.value === 'category' && (
-          <EditorForm class="stack" preventdefault:submit onSubmit$={saveCategory}>
+      <Modal
+        open={editorOpen()}
+        onDismiss={() => setEditorOpen(false)}
+        title={editorTitle()}
+        notice={editorOpen() && <ReconnectNotice />}
+      >
+        {editor() === 'category' && (
+          <EditorForm
+            class="stack"
+            onSubmit={saveCategory}
+            actions={
+              <ActionBar label="Editor actions">
+                <Button class="secondary" onClick={closeEditor} icon="close" label="Cancel" />
+                <Button
+                  type="submit"
+                  disabled={props.busy}
+                  icon="save"
+                  label={props.busy ? 'Saving…' : categoryId() ? 'Update category' : 'Save category'}
+                />
+              </ActionBar>
+            }
+          >
             <label class="field">
               Category name
               <Input
                 required
-                value={categoryName.value}
-                onInput$={(_, el) => (categoryName.value = el.value)}
+                value={categoryName()}
+                onInput={(event) => {
+                  setCategoryName(event.currentTarget.value);
+                }}
               />
             </label>
             <SelectField
               label="Parent category"
-              value={categoryParent.value}
-              onChange$={(value) => {
-                categoryParent.value = value;
+              value={categoryParent()}
+              onChange={(value) => {
+                setCategoryParent(value);
               }}
               options={[
                 { value: '', label: 'None (top-level category)' },
-                ...categoryOptions.filter(
+                ...categoryOptions().filter(
                   (row) =>
-                    !categoryPath(data.Categories, row.value).some(
-                      (ancestor) => ancestor.id === categoryId.value,
+                    !categoryPath(props.data.Categories, row.value).some(
+                      (ancestor) => ancestor.id === categoryId(),
                     ),
                 ),
               ]}
             />
-            {saveError}
-            <ActionBar q:slot="actions" label="Editor actions">
-              <Button class="secondary" onClick$={closeEditor} icon="close" label="Cancel" />
-              <Button
-                type="submit"
-                disabled={busy}
-                icon="save"
-                label={busy ? 'Saving…' : categoryId.value ? 'Update category' : 'Save category'}
-              />
-            </ActionBar>
+            {saveError()}
           </EditorForm>
         )}
 
-        {editor.value === 'product' && (
-          <EditorForm class="stack product-editor" preventdefault:submit onSubmit$={saveProduct}>
+        {editor() === 'product' && (
+          <EditorForm
+            class="stack product-editor"
+            onSubmit={saveProduct}
+            actions={
+              <ActionBar label="Editor actions">
+                <Button class="secondary" onClick={closeEditor} icon="close" label="Cancel" />
+                <Button
+                  type="submit"
+                  disabled={props.busy || photoProcessing()}
+                  icon="save"
+                  label={props.busy ? 'Saving…' : product().id ? 'Update product' : 'Save product'}
+                />
+              </ActionBar>
+            }
+          >
             <div class="form-grid">
               <label class="field">
                 Product name
                 <Input
                   required
-                  value={product.value.name}
-                  onInput$={(_, el) => (product.value = { ...product.value, name: el.value })}
+                  value={product().name}
+                  onInput={(event) => {
+                    const el = event.currentTarget;
+                    return setProduct({ ...product(), name: el.value });
+                  }}
                 />
               </label>
               <SelectField
                 label="Category"
-                value={product.value.categoryId}
-                onChange$={(value) => {
-                  product.value = { ...product.value, categoryId: value };
+                value={product().categoryId}
+                onChange={(value) => {
+                  setProduct({ ...product(), categoryId: value });
                 }}
-                options={[{ value: '', label: 'Uncategorized' }, ...categoryOptions]}
+                options={[{ value: '', label: 'Uncategorized' }, ...categoryOptions()]}
               />
             </div>
             <label class="field">
               Description
               <Textarea
-                value={product.value.description}
-                onInput$={(_, el) => (product.value = { ...product.value, description: el.value })}
+                value={product().description}
+                onInput={(event) => {
+                  const el = event.currentTarget;
+                  return setProduct({ ...product(), description: el.value });
+                }}
               />
             </label>
-            <ProductImageInput
-              key={productEditKey.value}
-              value={product.value.image}
-              editorVersion={productEditKey}
-              processing={photoProcessing}
-              disabled={busy}
-              onChange$={(image) => {
-                product.value = { ...product.value, image };
-              }}
-            />
-            {productOptions.value.length > 0 ? (
+            <Show when={productEditKey()} keyed>
+              {(_editorKey) => (
+                <ProductImageInput
+                  value={product().image}
+                  editorVersion={productEditKey()}
+                  processing={photoProcessing()}
+                  onProcessingChange={setPhotoProcessing}
+                  disabled={props.busy}
+                  onChange={(image) => {
+                    setProduct({ ...product(), image });
+                  }}
+                />
+              )}
+            </Show>
+            {productOptions().length > 0 ? (
               <fieldset class="option-fields stack">
                 <legend>Options</legend>
-                {productOptions.value.map((option, index) => (
-                  <div class="option-name-row" key={option.id}>
-                    <label class="field">
-                      Option name {index + 1}
-                      <Input
-                        required
-                        value={option.name}
-                        placeholder={index === 0 ? 'e.g. Color' : 'e.g. Size'}
-                        onInput$={(_, el) => {
-                          productOptions.value = productOptions.value.map((row) =>
-                            row.id === option.id ? { ...row, name: el.value } : row,
-                          );
-                          optionError.value = '';
-                        }}
-                      />
-                    </label>
-                    {!option.saved && (
-                      <Button
-                        class="secondary"
-                        aria-label={`Remove option ${index + 1}`}
-                        onClick$={() => {
-                          productOptions.value = productOptions.value.filter((row) => row.id !== option.id);
-                          optionError.value = '';
-                        }}
-                        icon="close"
-                        label="Remove"
-                      />
-                    )}
-                  </div>
-                ))}
+                <For each={productOptions()} keyed={(row) => row.id}>
+                  {(option, index) => (
+                    <div class="option-name-row">
+                      <label class="field">
+                        Option name {index() + 1}
+                        <Input
+                          required
+                          value={option().name}
+                          placeholder={index() === 0 ? 'e.g. Color' : 'e.g. Size'}
+                          onInput={(event) => {
+                            const el = event.currentTarget;
+                            setProductOptions(
+                              productOptions().map((row) =>
+                                row.id === option().id ? { ...row, name: el.value } : row,
+                              ),
+                            );
+                            setOptionError('');
+                          }}
+                        />
+                      </label>
+                      {!option().saved && (
+                        <Button
+                          class="secondary"
+                          aria-label={`Remove option ${index() + 1}`}
+                          onClick={() => {
+                            setProductOptions(productOptions().filter((row) => row.id !== option().id));
+                            setOptionError('');
+                          }}
+                          icon="close"
+                          label="Remove"
+                        />
+                      )}
+                    </div>
+                  )}
+                </For>
                 <Button
                   class="secondary option-add"
-                  onClick$={addOption}
+                  onClick={addOption}
                   icon="plus"
                   label="Add another option"
                 />
               </fieldset>
             ) : (
-              <Button class="secondary option-add" onClick$={addOption} icon="plus" label="Add options" />
+              <Button class="secondary option-add" onClick={addOption} icon="plus" label="Add options" />
             )}
-            {!product.value.id && (
+            {!product().id && (
               <section class="stack" aria-labelledby="first-variant-title">
                 <h3 id="first-variant-title">
-                  {productOptions.value.length ? 'First variant' : 'SKU and price'}
+                  {productOptions().length ? 'First variant' : 'SKU and price'}
                 </h3>
                 <div class="form-grid">
                   <label class="field">
                     SKU
                     <Input
                       required
-                      value={firstSku.value}
-                      onInput$={(_, el) => (firstSku.value = el.value)}
+                      value={firstSku()}
+                      onInput={(event) => {
+                        setFirstSku(event.currentTarget.value);
+                      }}
                     />
                   </label>
                   <label class="field">
-                    Price ({currency})
+                    Price ({currency()})
                     <Input
                       type="number"
-                      inputMode="decimal"
+                      inputmode="decimal"
                       min="0"
                       step="0.01"
                       required
-                      value={Number.isNaN(firstPrice.value) ? '' : firstPrice.value}
-                      onInput$={(_, el) => (firstPrice.value = el.valueAsNumber)}
+                      value={Number.isNaN(firstPrice()) ? '' : firstPrice()}
+                      onInput={(event) => {
+                        setFirstPrice(event.currentTarget.valueAsNumber);
+                      }}
                     />
                   </label>
-                  {productOptions.value
-                    .filter((option) => option.name.trim())
-                    .map((option) => (
-                      <label class="field" key={option.id}>
-                        {option.name.trim()}
+                  <For each={productOptions().filter((option) => option.name.trim())} keyed={(row) => row.id}>
+                    {(option) => (
+                      <label class="field">
+                        {option().name.trim()}
                         <Input
                           required
-                          value={option.firstValue}
-                          onInput$={(_, el) => {
-                            productOptions.value = productOptions.value.map((row) =>
-                              row.id === option.id ? { ...row, firstValue: el.value } : row,
+                          value={option().firstValue}
+                          onInput={(event) => {
+                            const el = event.currentTarget;
+                            setProductOptions(
+                              productOptions().map((row) =>
+                                row.id === option().id ? { ...row, firstValue: el.value } : row,
+                              ),
                             );
-                            optionError.value = '';
+                            setOptionError('');
                           }}
                         />
                       </label>
-                    ))}
+                    )}
+                  </For>
                 </div>
               </section>
             )}
             <Switch
-              key={productEditKey.value}
               label="Active product"
-              checked={product.value.active}
-              onChange$={(_, input) => {
-                product.value = { ...product.value, active: input.checked };
+              checked={product().active}
+              onChange={(event) => {
+                const input = event.currentTarget;
+                setProduct({ ...product(), active: input.checked });
               }}
             />
-            {saveError}
-            <ActionBar q:slot="actions" label="Editor actions">
-              <Button class="secondary" onClick$={closeEditor} icon="close" label="Cancel" />
-              <Button
-                type="submit"
-                disabled={busy || photoProcessing.value}
-                icon="save"
-                label={busy ? 'Saving…' : product.value.id ? 'Update product' : 'Save product'}
-              />
-            </ActionBar>
+            {saveError()}
           </EditorForm>
         )}
 
-        {editor.value === 'variant' && (
-          <EditorForm class="stack" preventdefault:submit onSubmit$={saveVariant}>
-            <p class="muted">{data.Products.find(({ id }) => id === variant.value.productId)?.name}</p>
+        {editor() === 'variant' && (
+          <EditorForm
+            class="stack"
+            onSubmit={saveVariant}
+            actions={
+              <ActionBar label="Editor actions">
+                <Button class="secondary" onClick={closeEditor} icon="close" label="Cancel" />
+                <Button
+                  type="submit"
+                  disabled={props.busy}
+                  icon="save"
+                  label={props.busy ? 'Saving…' : variant().id ? 'Update variant' : 'Save variant'}
+                />
+              </ActionBar>
+            }
+          >
+            <p class="muted">{props.data.Products.find(({ id }) => id === variant().productId)?.name}</p>
             <div class="form-grid">
               <label class="field">
                 SKU
                 <Input
                   required
-                  value={variant.value.sku}
-                  onInput$={(_, el) => (variant.value = { ...variant.value, sku: el.value })}
+                  value={variant().sku}
+                  onInput={(event) => {
+                    const el = event.currentTarget;
+                    return setVariant({ ...variant(), sku: el.value });
+                  }}
                 />
               </label>
-              {variantOptions.value.map((option, index) => (
-                <label class="field" key={index}>
-                  {option.name}
-                  <Input
-                    required={!variant.value.id}
-                    value={option.value}
-                    onInput$={(_, el) => {
-                      variantOptions.value = variantOptions.value.map((row, position) =>
-                        position === index ? { ...row, value: el.value } : row,
-                      );
-                      optionError.value = '';
-                    }}
-                  />
-                </label>
-              ))}
-              {variantOptions.value.length === 0 && variant.value.optionValues && (
+              <For each={variantOptions()} keyed={(row) => row.name}>
+                {(option, index) => (
+                  <label class="field">
+                    {option().name}
+                    <Input
+                      required={!variant().id}
+                      value={option().value}
+                      onInput={(event) => {
+                        const el = event.currentTarget;
+                        setVariantOptions(
+                          variantOptions().map((row, position) =>
+                            position === index() ? { ...row, value: el.value } : row,
+                          ),
+                        );
+                        setOptionError('');
+                      }}
+                    />
+                  </label>
+                )}
+              </For>
+              {variantOptions().length === 0 && variant().optionValues && (
                 <label class="field">
                   Variant label
                   <Input
-                    value={variant.value.optionValues}
-                    onInput$={(_, el) => (variant.value = { ...variant.value, optionValues: el.value })}
+                    value={variant().optionValues}
+                    onInput={(event) => {
+                      const el = event.currentTarget;
+                      return setVariant({ ...variant(), optionValues: el.value });
+                    }}
                   />
                 </label>
               )}
               <label class="field">
-                Price ({currency})
+                Price ({currency()})
                 <Input
                   type="number"
-                  inputMode="decimal"
+                  inputmode="decimal"
                   min="0"
                   step="0.01"
                   required
-                  value={Number.isNaN(variant.value.price) ? '' : variant.value.price}
-                  onInput$={(_, el) => (variant.value = { ...variant.value, price: el.valueAsNumber })}
+                  value={Number.isNaN(variant().price) ? '' : variant().price}
+                  onInput={(event) => {
+                    const el = event.currentTarget;
+                    return setVariant({ ...variant(), price: el.valueAsNumber });
+                  }}
                 />
               </label>
             </div>
             <Switch
               label="Active variant"
-              checked={variant.value.active}
-              onChange$={(_, input) => {
-                variant.value = { ...variant.value, active: input.checked };
+              checked={variant().active}
+              onChange={(event) => {
+                const input = event.currentTarget;
+                setVariant({ ...variant(), active: input.checked });
               }}
             />
-            {saveError}
-            <ActionBar q:slot="actions" label="Editor actions">
-              <Button class="secondary" onClick$={closeEditor} icon="close" label="Cancel" />
-              <Button
-                type="submit"
-                disabled={busy}
-                icon="save"
-                label={busy ? 'Saving…' : variant.value.id ? 'Update variant' : 'Save variant'}
-              />
-            </ActionBar>
+            {saveError()}
           </EditorForm>
         )}
       </Modal>
 
-      {subpage.value === 'products' ? (
+      {subpage() === 'products' ? (
         <>
-          {shown.length === 0 ? (
+          {shown().length === 0 ? (
             <Panel class="empty stack">
               <p>
-                {data.Products.length
+                {props.data.Products.length
                   ? 'No products match these filters.'
                   : 'Add a product to start your catalog.'}
               </p>
             </Panel>
           ) : (
             <div class="product-list-scroll-frame">
-              <div class="product-grid">
-                {shown.map((item) => {
-                  const variants = variantsByProduct.get(item.id) ?? [];
-                  const productStatus = item.active ? 'Active' : 'Archived';
-
-                  return (
-                    <article class="panel product-card" key={item.id}>
-                      <Collapsible.Root class="product-disclosure">
-                        <div class="product-head">
-                          <div class="product-identity">
-                            <ProductPhoto
-                              key={`${item.name}:${item.image ?? ''}`}
-                              name={item.name}
-                              value={item.image}
-                              class="catalog-photo"
-                            />
-                            <div class="product-heading">
-                              <p class="eyebrow">{categoryNames.get(item.categoryId) || 'Uncategorized'}</p>
-                              <h3>{item.name}</h3>
-                              {item.description && <p class="muted">{item.description}</p>}
-                            </div>
-                          </div>
-                          <div class="row product-actions">
-                            <Badge status={productStatus}>{productStatus}</Badge>
-                            <Collapsible.Trigger
-                              class="button secondary compact variant-toggle"
-                              aria-label={`Variants for ${item.name}`}
-                            >
-                              <span>
-                                {variants.length} {variants.length === 1 ? 'variant' : 'variants'}
-                              </span>
-                              <span class="control-chevron" aria-hidden="true" />
-                            </Collapsible.Trigger>
-                            <Button
-                              class="secondary compact catalog-icon-button"
-                              title="Edit product"
-                              aria-label={`Edit product ${item.name}`}
-                              onClick$={() => openProduct(item)}
-                            >
-                              <Icon name="edit" />
-                            </Button>
-                            <Button
-                              class="secondary compact catalog-icon-button"
-                              title="Add variant"
-                              aria-label={`Add variant to ${item.name}`}
-                              onClick$={() => openVariant(newVariant(item.id))}
-                            >
-                              <Icon name="plus" />
-                            </Button>
-                          </div>
-                        </div>
-                        <Collapsible.Content class="product-variants">
-                          {variants.length > 0 ? (
-                            <>
-                              <Table desktopOnly aria-label={`Variants for ${item.name}`}>
-                                <thead>
-                                  <tr>
-                                    <th scope="col">Variant</th>
-                                    <th scope="col">SKU</th>
-                                    <th scope="col" class="numeric">
-                                      Price ({currency})
-                                    </th>
-                                    <th scope="col">Status</th>
-                                    <th scope="col">
-                                      <span class="sr-only">Action</span>
-                                    </th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {variants.map((row) => {
-                                    const variantStatus = row.active ? 'Active' : 'Archived';
-                                    return (
-                                      <tr key={row.id}>
-                                        <td>
-                                          <ProductLabel name={item.name} image={item.image}>
-                                            {row.optionValues || 'Default'}
-                                          </ProductLabel>
-                                        </td>
-                                        <td class="sku">{row.sku}</td>
-                                        <td class="numeric">{decimalAmount(row.price, numberFormat)}</td>
-                                        <td>
-                                          <Badge status={variantStatus}>{variantStatus}</Badge>
-                                        </td>
-                                        <td>
-                                          <Button
-                                            class="secondary compact catalog-icon-button"
-                                            title="Edit variant"
-                                            aria-label={`Edit variant ${row.sku}`}
-                                            onClick$={() => openVariant(row)}
-                                          >
-                                            <Icon name="edit" />
-                                          </Button>
-                                        </td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                              </Table>
-                              <ul class="mobile-records" aria-label={`Variants for ${item.name}`}>
-                                {variants.map((row) => {
-                                  const variantStatus = row.active ? 'Active' : 'Archived';
-                                  return (
-                                    <li class="mobile-record" key={row.id}>
-                                      <div class="mobile-record-head">
-                                        <ProductLabel name={item.name} image={item.image}>
-                                          <strong>{row.optionValues || 'Default'}</strong>
-                                          <span class="inventory-row-meta sku">{row.sku}</span>
-                                        </ProductLabel>
-                                        <Button
-                                          class="secondary compact catalog-icon-button"
-                                          title="Edit variant"
-                                          aria-label={`Edit variant ${row.sku}`}
-                                          onClick$={() => openVariant(row)}
-                                        >
-                                          <Icon name="edit" />
-                                        </Button>
-                                      </div>
-                                      <dl class="mobile-record-values">
-                                        <div>
-                                          <dt>Price</dt>
-                                          <dd>
-                                            {decimalAmount(row.price, numberFormat)} {currency}
-                                          </dd>
-                                        </div>
-                                        <div>
-                                          <dt>Status</dt>
-                                          <dd>
-                                            <Badge status={variantStatus}>{variantStatus}</Badge>
-                                          </dd>
-                                        </div>
-                                      </dl>
-                                    </li>
-                                  );
-                                })}
-                              </ul>
-                            </>
-                          ) : (
-                            <p class="empty">No variants yet.</p>
-                          )}
-                        </Collapsible.Content>
-                      </Collapsible.Root>
-                    </article>
-                  );
-                })}
+              <div class="product-grid paged-viewport">
+                <PagedRows
+                  rows={shown()}
+                  estimate={120}
+                  resetKey={JSON.stringify([search(), category(), status()])}
+                >
+                  {(page) => (
+                    <For each={page()} keyed={(product) => product.id}>
+                      {(product) => (
+                        <ProductCard
+                          expanded={expandedIds().has(product().id)}
+                          onToggle={() => toggleProduct(product().id)}
+                          product={product()}
+                          variants={variantIndex().get(product().id) ?? []}
+                          category={categoryNames().get(product().categoryId)}
+                          currency={currency()}
+                          numberFormat={numberFormat()}
+                          onEdit={openProduct}
+                          onEditVariant={openVariant}
+                        />
+                      )}
+                    </For>
+                  )}
+                </PagedRows>
               </div>
             </div>
           )}
         </>
       ) : (
-        <div class="component-scroll stack category-list">
-          {shownCategories.length ? (
-            shownCategories.map((item) => (
-              <Panel key={item.value} class="category-row">
-                <div>
-                  <h3>{item.label}</h3>
-                  <p class="muted">
-                    {data.Products.filter((row) => row.categoryId === item.value).length} products ·{' '}
-                    {data.Categories.filter((row) => row.parentId === item.value).length} subcategories
-                  </p>
-                </div>
-                <div class="row">
-                  <Button
-                    class="secondary compact"
-                    aria-label={`Edit category ${item.label}`}
-                    onClick$={() => openCategory(item.value)}
-                    icon="edit"
-                    mobileIconOnly
-                    label="Edit"
-                  />
-                  <Button
-                    class="secondary compact"
-                    aria-label={`Add subcategory to ${item.label}`}
-                    onClick$={() => openCategory('', item.value)}
-                    icon="plus"
-                    mobileIconOnly
-                    label="Add subcategory"
-                  />
-                  <Button
-                    class="secondary compact"
-                    onClick$={async () => {
-                      category.value = [item.value];
-                      search.value = '';
-                      status.value = [];
-                      await navigate$('/catalog');
-                    }}
-                    icon="arrow-right"
-                    mobileIconOnly
-                    label="View products"
-                  />
-                </div>
-              </Panel>
-            ))
+        <div class="component-scroll stack category-list paged-viewport">
+          {shownCategories().length ? (
+            <PagedRows rows={shownCategories()} estimate={90} resetKey={categorySearch()}>
+              {(page) => (
+                <>
+                  {page().map((item) => (
+                    <Panel class="category-row">
+                      <div>
+                        <h3>{item.label}</h3>
+                        <p class="muted">
+                          {props.data.Products.filter((row) => row.categoryId === item.value).length} products
+                          · {props.data.Categories.filter((row) => row.parentId === item.value).length}{' '}
+                          subcategories
+                        </p>
+                      </div>
+                      <div class="row">
+                        <Button
+                          class="secondary compact"
+                          aria-label={`Edit category ${item.label}`}
+                          onClick={() => openCategory(item.value)}
+                          icon="edit"
+                          mobileIconOnly
+                          label="Edit"
+                        />
+                        <Button
+                          class="secondary compact"
+                          aria-label={`Add subcategory to ${item.label}`}
+                          onClick={() => openCategory('', item.value)}
+                          icon="plus"
+                          mobileIconOnly
+                          label="Add subcategory"
+                        />
+                        <Button
+                          class="secondary compact"
+                          onClick={async () => {
+                            setCategory([item.value]);
+                            setSearch('');
+                            setStatus([]);
+                            await navigate('/catalog');
+                          }}
+                          icon="arrow-right"
+                          mobileIconOnly
+                          label="View products"
+                        />
+                      </div>
+                    </Panel>
+                  ))}
+                </>
+              )}
+            </PagedRows>
           ) : (
             <Panel class="empty">
-              {data.Categories.length
+              {props.data.Categories.length
                 ? 'No categories match your search.'
                 : 'Add a category to organize your products.'}
             </Panel>
@@ -864,4 +832,4 @@ export const Catalog = component$<Props>(({ data, busy, error, onCommit$ }) => {
       )}
     </section>
   );
-});
+}

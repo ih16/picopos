@@ -37,9 +37,9 @@ The top-right sun/moon toggle switches day and night mode. Theme colors live in 
 - Reuse tokens and component classes when migrating a view. Avoid decorative controls, fictional data in connected workbooks, and color as the only status cue.
 - Check the setup, orders, catalog, and inventory screens. Exercise order creation, filtering, and workbook actions after layout changes.
 
-## Qwik UI integration
+## Shared controls
 
-Use the shared components in `src/shared/ui/controls.tsx`. Button, panel, and badge use Qwik UI's polymorphic primitive. Filters, searchable variant fields, expandable details, and modal editors use Qwik UI's Select, Combobox, Collapsible, and Modal components. Keep native inputs and form selects inside the shared styled components where native validation, numeric keyboards, platform pickers, or FormData are useful. Keep structured data in semantic tables and labeled record lists.
+Use the shared components in `src/shared/ui/controls.tsx`. Dialogs, disclosures, and expandable form sections use native HTML elements. The searchable combobox supports single and multiple selection. Keep native inputs and form selects inside the shared styled components where native validation, numeric keyboards, platform pickers, or FormData are useful. Keep structured data in semantic tables and labeled record lists.
 
 On phones, use actions and input targets at least 44 px tall. At 680 px and below, show stacked records for the catalog, order lists and details, and stock balances and history. Keep long labels and SKUs wrapped inside the card. Editors open as bottom sheets, and the order form keeps its total and primary action visible at the bottom.
 
@@ -59,6 +59,6 @@ For a simple product, show SKU and price. Reveal one field per option name when 
 
 Dashboard charts use the same status and theme tokens as the order views. Keep metric definitions aligned with [the workflow guide](docs/workflows.md#dashboard): fulfilled order value is not a cash-received or profit metric. Charts need accessible labels and visible values or legends.
 
-Lists using `src/shared/hooks/use-virtual-scroll.ts` render a measured window with spacer rows. Preserve the scroll container and measurement behavior when changing row layouts. Review long names, expanded rows, filters, and scroll position at both desktop and phone widths.
+Large record lists use `src/shared/ui/paged-rows.tsx` to render measured pages selected by scroll offset. Preserve the scroll container and measurement behavior when changing row layouts. Review long names, expanded rows, filters, and scroll position at both desktop and phone widths.
 
 Treat the accessibility items above as review requirements, not a claim that every browser and assistive technology has been certified. Recheck both themes after changing surface or focus tokens.

@@ -4,15 +4,13 @@ import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const dist = fileURLToPath(new URL('../dist/', import.meta.url));
-const assets = ['/index.html', '/q-data.json', '/picopos-mark.svg'];
+const assets = ['/index.html', '/help/index.html', '/picopos-mark.svg'];
 
-for (const directory of ['assets', 'build']) {
-  const files = await readdir(join(dist, directory), { recursive: true, withFileTypes: true });
-  for (const file of files) {
-    if (file.isFile()) {
-      const path = relative(dist, join(file.parentPath, file.name)).split(sep).join('/');
-      assets.push(`/${path}`);
-    }
+const files = await readdir(join(dist, 'assets'), { recursive: true, withFileTypes: true });
+for (const file of files) {
+  if (file.isFile()) {
+    const path = relative(dist, join(file.parentPath, file.name)).split(sep).join('/');
+    assets.push(`/${path}`);
   }
 }
 assets.sort();

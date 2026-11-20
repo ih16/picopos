@@ -111,7 +111,7 @@ See [daily workflows](docs/workflows.md) for supported transitions, partial retu
 
 ## Development
 
-Built with **Qwik City**, **TypeScript**, and **Vite**, using Google Identity, Google Picker, and the Google Sheets API. Browser persistence uses OPFS; no application API server is required.
+Built with **SolidJS 2**, **TypeScript**, and **Vite**, using Google Identity, Google Picker, and the Google Sheets API. Browser persistence uses OPFS; no application API server is required.
 
 | Command                | Purpose                                       |
 | ---------------------- | --------------------------------------------- |
@@ -133,12 +133,13 @@ src/
 ├── domain/           Workbook types, business rules, and sync merging
 ├── features/         Catalog, orders, customers, inventory, and settings
 ├── infrastructure/   Google integration and browser persistence
-├── routes/           Qwik City entry points
+├── main.tsx          Workspace entry point
+├── help.tsx          Help entry point
 ├── shared/           Reusable controls, hooks, and formatting
 └── styles/           Application styles and design tokens
 tests/                Regression tests
 scripts/              Offline shell build and service worker
-adapters/static/      Static build configuration
+vite.config.ts        Static build configuration
 docs/                 Setup, workflows, schema, and release guides
 ```
 
@@ -149,11 +150,11 @@ Screens use hash routes such as `#/orders`, `#/catalog`, and `#/inventory`. Dire
 Build for your deployment origin, then publish **`dist/`** to a static HTTPS host at the origin root:
 
 ```sh
-PUBLIC_ORIGIN=https://www.picopos.app npm run verify
+npm run verify
 npm run preview
 ```
 
-Set the Google environment variables before building and authorize the deployed origin in Google Cloud. The generated `server/` directory is used for static generation and is not a production backend. Hash routes do not require application route rewrites.
+Set the Google environment variables before building and authorize the deployed origin in Google Cloud. Hash routes do not require application route rewrites.
 
 The project includes `vercel.json` for Vercel hosting. Follow the [production guide](docs/production.md) for configuration, cache headers, offline updates, and release checks. Automated checks do not verify live Google authorization, real workbook writes, or production caching.
 

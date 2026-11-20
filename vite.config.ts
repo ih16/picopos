@@ -1,11 +1,9 @@
-import { qwikCity } from '@builder.io/qwik-city/vite';
-import { qwikVite } from '@builder.io/qwik/optimizer';
+import solid from '@solidjs/vite-plugin';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
   plugins: [
-    qwikCity(),
-    qwikVite(),
+    solid(),
     {
       name: 'retire-offline-shell-in-dev',
       configureServer(server) {
@@ -27,5 +25,6 @@ export default defineConfig({
       },
     },
   ],
+  build: { rolldownOptions: { input: ['index.html', 'help/index.html'] } },
   server: { host: 'localhost', port: 8899 },
 });

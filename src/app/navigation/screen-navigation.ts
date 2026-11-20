@@ -1,8 +1,9 @@
-import { createContextId, type QRL, type Signal } from '@builder.io/qwik';
+import { createContext, type Accessor } from 'solid-js';
+
 import type { ScreenRoute } from './screen-route';
 
-export const ScreenNavigation = createContextId<{
-  route: Signal<ScreenRoute>;
-  close$: QRL<() => void | Promise<void>>;
-  navigate$: QRL<(path: string, replace?: boolean) => void>;
-}>('picopos.screen-navigation');
+export const ScreenNavigation = createContext<{
+  route: Accessor<ScreenRoute>;
+  close: () => void | Promise<void>;
+  navigate: (path: string, replace?: boolean) => void;
+}>();

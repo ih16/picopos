@@ -1,11 +1,10 @@
-import type { QRL } from '@builder.io/qwik';
 import type { PaymentStatus, RowChange, WorkbookData } from '../../domain/workbook';
 
 export interface OrdersProps {
   data: WorkbookData;
   busy: boolean;
   saveError?: string;
-  onCommit$: QRL<(changes: RowChange[], editBase?: RowChange[]) => Promise<boolean>>;
+  onCommit: (changes: RowChange[], editBase?: RowChange[]) => Promise<boolean>;
 }
 
 interface DraftLine {

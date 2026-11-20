@@ -1,12 +1,10 @@
-import { component$ } from '@builder.io/qwik';
-
 import { dashboardSummary } from '../domain/dashboard';
 import { demoWorkbook } from '../domain/demo';
 import { workbookCurrency, workbookNumberFormat } from '../domain/settings';
 import { money } from '../shared/lib/format';
 
 // The inactive backdrop is decorative. Real screens mount after the workbook is available.
-export const WorkspacePreview = component$(() => {
+export function WorkspacePreview() {
   const now = new Date();
   const data = demoWorkbook(now);
   const report = dashboardSummary(data, 30, now);
@@ -31,7 +29,7 @@ export const WorkspacePreview = component$(() => {
             ['Average sale', amount(report.average)],
             ['Outstanding payments', amount(report.unpaid)],
           ].map(([label, value]) => (
-            <div class="panel dashboard-metric" key={label}>
+            <div class="panel dashboard-metric">
               <dt>{label}</dt>
               <dd>{value}</dd>
             </div>
@@ -49,4 +47,4 @@ export const WorkspacePreview = component$(() => {
       </div>
     </div>
   );
-});
+}

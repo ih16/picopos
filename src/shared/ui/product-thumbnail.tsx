@@ -1,4 +1,6 @@
-import { component$, Slot, useComputed$ } from '@builder.io/qwik';
+import type { JSX } from '@solidjs/web';
+import { createMemo } from 'solid-js';
+
 import { MAX_PRODUCT_IMAGE_LENGTH } from '../../domain/workbook';
 
 export function photoSource(value?: string): string | undefined {
@@ -9,28 +11,36 @@ export function photoSource(value?: string): string | undefined {
     : undefined;
 }
 
-export const ProductPhoto = component$<{ value?: string; name: string; class?: string }>((props) => {
-  const src = useComputed$(() => photoSource(props.value));
-  return src.value ? (
-    <img
-      class={['product-photo', props.class]}
-      src={src.value}
-      alt={props.name}
-      loading="lazy"
-      decoding="async"
-    />
-  ) : (
-    <span class={['product-photo', 'product-photo-placeholder', props.class]} aria-hidden="true">
-      {Array.from(props.name.trim())[0]?.toUpperCase() || 'P'}
+type ProductPhotoProps = { value?: string; name: string; class?: string };
+
+export function ProductPhoto(props: ProductPhotoProps) {
+  const src = createMemo(() => photoSource(props.value));
+  return (
+    <>
+      {src() ? (
+        <img
+          class={['product-photo', props.class]}
+          src={src()}
+          alt={props.name}
+          loading="lazy"
+          decoding="async"
+        />
+      ) : (
+        <span class={['product-photo', 'product-photo-placeholder', props.class]} aria-hidden="true">
+          {Array.from(props.name.trim())[0]?.toUpperCase() || 'P'}
+        </span>
+      )}
+    </>
+  );
+}
+
+type ProductLabelProps = { image?: string; name: string } & { children?: JSX.Element };
+
+export function ProductLabel(props: ProductLabelProps) {
+  return (
+    <span class="product-label">
+      <ProductPhoto value={props.image} name={props.name} class="product-list-photo" />
+      <span class="product-label-text">{props.children}</span>
     </span>
   );
-});
-
-export const ProductLabel = component$<{ image?: string; name: string }>((props) => (
-  <span class="product-label">
-    <ProductPhoto value={props.image} name={props.name} class="product-list-photo" />
-    <span class="product-label-text">
-      <Slot />
-    </span>
-  </span>
-));
+}
