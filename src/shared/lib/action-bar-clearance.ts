@@ -1,12 +1,14 @@
 const scrollAreas = [
   '.settings-grid',
   '.dashboard-scroll',
-  '.orders-list > .table-wrap',
-  '.orders-list > .mobile-records',
+  '.orders-list > .table-wrap:not(:has(> .scroll-rows.paged-viewport))',
+  '.mobile-records.paged-viewport',
+  '.order-detail-page',
+  '.customer-details-page',
   '.orders-list > .empty',
   '.product-list-scroll-frame > .product-grid',
   '.component-scroll',
-  '.scroll-rows > tbody',
+  '.scroll-rows.paged-viewport',
   '.order-draft-form > .form-accordion',
   '.ui-modal-content',
 ].join(',');
@@ -23,7 +25,7 @@ export function watchActionBarClearance() {
   const update = () => {
     frame = 0;
     const areas = [...document.querySelectorAll<HTMLElement>(scrollAreas)];
-    const bars = [...document.querySelectorAll<HTMLElement>('.action-bar')];
+    const bars = [...document.querySelectorAll<HTMLElement>('.action-bar, .demo-notice')];
     const targets = new Set<Element>([...areas, ...bars]);
     for (const element of observed) {
       if (!targets.has(element)) {
@@ -37,14 +39,22 @@ export function watchActionBarClearance() {
         observed.add(element);
       }
     }
-    // Mobile record shortcuts reserve clearance on the document-scrolling page.
-    const mobile = window.matchMedia('(max-width: 760px)').matches;
     const floating = bars
-      .filter((bar) => !(mobile && bar.classList.contains('record-shortcut')))
       .filter((bar) => bar.getClientRects().length && getComputedStyle(bar).position === 'fixed')
       .map((bar) => ({ bar, rect: bar.getBoundingClientRect() }));
     for (const area of areas) {
       const rect = area.getBoundingClientRect();
+      // A product card already has space below its actions. Reserve only the
+      // additional space needed for a button in the floating bar's path.
+      const lastCard = area.matches('.product-grid')
+        ? area.querySelector<HTMLElement>(
+            '.paged-group:has(+ .page-spacer) .product-card:last-child, :scope > .product-card:last-child',
+          )
+        : null;
+      const cardBottom = lastCard?.getBoundingClientRect().bottom;
+      const cardButtons = lastCard
+        ? [...lastCard.querySelectorAll('button')].map((button) => button.getBoundingClientRect())
+        : [];
       let clearance = 0;
       if (area.getClientRects().length && /auto|scroll/.test(getComputedStyle(area).overflowY)) {
         for (const { bar, rect: action } of floating) {
@@ -56,7 +66,15 @@ export function watchActionBarClearance() {
             rect.bottom > action.top &&
             rect.top < action.bottom
           ) {
-            clearance = Math.max(clearance, Math.ceil(rect.bottom - action.top + 12));
+            let overlap = rect.bottom - action.top + 12;
+            if (cardBottom !== undefined) {
+              const covered = cardButtons.filter(
+                (button) => button.left < action.right && button.right > action.left,
+              );
+              if (!covered.length) continue;
+              overlap -= cardBottom - Math.max(...covered.map((button) => button.bottom));
+            }
+            clearance = Math.max(clearance, Math.ceil(overlap));
           }
         }
       }

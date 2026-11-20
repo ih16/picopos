@@ -67,10 +67,10 @@ export function Switch(props: SwitchProps) {
 export function Panel(props: PropsOf<'div'>) {
   return <div {...omit(props, 'class')} class={['panel', props.class]} />;
 }
-export function Table(props: PropsOf<'table'> & { desktopOnly?: boolean }) {
+export function Table(props: PropsOf<'table'> & { desktopOnly?: boolean; paged?: boolean }) {
   return (
-    <div class={['table-wrap', props.desktopOnly && 'desktop-table']}>
-      <table {...omit(props, 'class', 'desktopOnly')} class={['data-table', props.class]} />
+    <div class={['table-wrap', props.desktopOnly && 'desktop-table', props.paged && 'paged-viewport']}>
+      <table {...omit(props, 'class', 'desktopOnly', 'paged')} class={['data-table', props.class]} />
     </div>
   );
 }

@@ -425,10 +425,28 @@ textarea {
   font-weight: var(--weight-bold);
   white-space: nowrap;
 }
-.data-table thead th {
+.data-table > thead {
+  --table-header-blur: blur(36px);
   position: sticky;
   top: 0;
   z-index: 1;
+  background-color: transparent;
+  border-radius: var(--radius-input) var(--radius-input) 0 0;
+  clip-path: inset(0 round var(--radius-input) var(--radius-input) 0 0);
+  -webkit-backdrop-filter: var(--table-header-blur);
+  backdrop-filter: var(--table-header-blur);
+}
+.data-table > thead::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--glass-border);
+  border-bottom: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.data-table > thead th {
+  padding-block: var(--space-3);
 }
 .data-table td {
   overflow-wrap: anywhere;
@@ -1957,8 +1975,8 @@ body:has(.workspace) {
 .action-bar .order-save-error {
   flex-basis: 100%;
 }
-/* A filtered ancestor would anchor fixed actions to the panel instead of the viewport. */
-.panel:has(.action-bar),
+/* Let fixed actions use the viewport and sticky headers sample the rows behind them. */
+.panel:has(.action-bar, .data-table),
 .ui-modal {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
@@ -2345,6 +2363,9 @@ body:has(.workspace) {
   margin-top: 0;
   font-size: var(--text-caption);
 }
+.order-detail-page {
+  margin-block-end: var(--space-4);
+}
 .order-detail-page > .panel {
   display: flex;
   flex-direction: column;
@@ -2407,7 +2428,7 @@ body:has(.workspace) {
 .component-scroll:has(.data-table) {
   overscroll-behavior: none;
 }
-.component-scroll .table-wrap {
+.component-scroll .table-wrap:not(.paged-viewport) {
   overflow: visible;
   border-radius: 0;
 }
@@ -2971,24 +2992,26 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
   margin: 5px 0 8px;
 }
 /* Extend the active scroller to the viewport edge while keeping its contents aligned. */
-:is(.workspace, .workspace-body, .workspace-main, .main-content):has(
-  .workspace-page:not([hidden])
-    :is(.dashboard-page, .product-list-scroll-frame, .settings-grid, .new-order-page)
-),
-.workspace-page:not([hidden]):has(
-    .dashboard-page,
-    .product-list-scroll-frame,
-    .settings-grid,
-    .new-order-page
+@media (min-width: 761px) {
+  :is(.workspace, .workspace-body, .workspace-main, .main-content):has(
+    .workspace-page:not([hidden])
+      :is(.dashboard-page, .product-list-scroll-frame, .settings-grid, .new-order-page)
   ),
-.catalog-page:has(> .product-list-scroll-frame) {
-  overflow: visible;
-}
-.workspace-main:has(
-  .workspace-page:not([hidden])
-    :is(.dashboard-page, .product-list-scroll-frame, .settings-grid, .new-order-page)
-) {
-  container-type: inline-size;
+  .workspace-page:not([hidden]):has(
+      .dashboard-page,
+      .product-list-scroll-frame,
+      .settings-grid,
+      .new-order-page
+    ),
+  .catalog-page:has(> .product-list-scroll-frame) {
+    overflow: visible;
+  }
+  .workspace-main:has(
+    .workspace-page:not([hidden])
+      :is(.dashboard-page, .product-list-scroll-frame, .settings-grid, .new-order-page)
+  ) {
+    container-type: inline-size;
+  }
 }
 .order-draft-form > .form-accordion,
 .settings-grid,
@@ -3893,25 +3916,14 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
 }
 
 @media (max-width: 760px) {
-  /* Let phone pages grow with their forms, filters and on-screen keyboard. */
-  body:has(.workspace:not(.workspace-preview)):not(:has(dialog[open])) {
-    height: auto;
-    overflow: visible;
-  }
-  body:has(dialog[open]) {
-    overflow: hidden;
-  }
+  /* The shell owns the viewport; only the records or form fields scroll. */
   .workspace:not(.workspace-preview) {
     --workspace-gutter: 10px;
-    height: auto;
-    min-height: 100dvh;
-    padding-bottom: max(16px, env(safe-area-inset-bottom));
-    overflow: visible;
   }
   .workspace:has(.workspace-sidebar) {
     --mobile-nav-target: 52px;
     --mobile-nav-height: calc(var(--mobile-nav-target) + 1px + env(safe-area-inset-bottom, 0px));
-    padding-bottom: calc(var(--mobile-nav-height) + 16px);
+    padding-bottom: var(--mobile-nav-height);
   }
   .main-content > .demo-notice {
     position: static;
@@ -3941,7 +3953,7 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
     flex-direction: column;
     gap: 8px;
     padding-top: 4px;
-    overflow: visible;
+    overflow: hidden;
   }
   .workspace-sidebar {
     position: fixed;
@@ -4021,32 +4033,9 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
   .mobile-nav-options .nav-item {
     justify-content: flex-start;
   }
-  .workspace-main,
-  .main-content,
-  .workspace-page,
-  .orders-page,
-  .customers-page,
-  .catalog-page,
-  .inventory-page,
-  .record-page,
-  .order-detail-page > .panel,
-  .customer-profile,
-  .customer-history,
-  .customers-list,
-  .inventory-page > .panel,
-  .orders-page > .orders-list {
-    overflow: visible;
-    max-height: none;
+  .workspace-main {
+    flex: 1;
     min-width: 0;
-    scrollbar-gutter: auto;
-  }
-  .workspace-main:has(.workspace-page:not([hidden])) {
-    container-type: normal;
-  }
-  .catalog-page > .catalog-toolbar,
-  .order-detail-page > .detail-summary {
-    max-height: none;
-    overflow: visible;
   }
   .order-draft-form > .form-accordion,
   .settings-page > .settings-grid,
@@ -4054,8 +4043,10 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
   .dashboard-scroll {
     --scroll-right-gutter: 0px;
     margin-right: 0;
-    overflow: visible;
     mask-image: none;
+  }
+  .product-list-scroll-frame > .product-grid {
+    scrollbar-gutter: stable both-edges;
   }
   .dashboard-header::after,
   .settings-title::after,
@@ -4102,20 +4093,19 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
   .dashboard-bars {
     max-height: 22rem;
   }
-  .order-detail-page > .panel,
-  .order-detail-page .component-scroll,
-  .product-list-scroll-frame,
-  .product-list-scroll-frame > .product-grid {
-    flex: none;
+  /* Multi-section details scroll together inside their workspace tab. */
+  .order-detail-page,
+  .customer-details-page {
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
-  /* A swipe at a list boundary continues on the mobile page. The root
-     still suppresses viewport overscroll, and dialogs keep their own boundary. */
-  .workspace-page :is(.component-scroll, .table-wrap, .scroll-rows > tbody, .dashboard-bars) {
-    overscroll-behavior-y: auto;
+  .order-detail-page > .panel,
+  .customer-details-page > .panel {
+    flex: none;
+    max-height: none;
   }
   .order-detail-page .component-scroll {
-    overflow: visible;
-    scrollbar-gutter: auto;
+    flex: none;
   }
   .order-header,
   .order-header-details {
@@ -4194,8 +4184,7 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
     pointer-events: none;
   }
   .action-bar.order-save-bar {
-    position: sticky;
-    bottom: calc(var(--mobile-nav-height) + 12px);
+    position: static;
     max-width: 100%;
     box-shadow: var(--shadow-panel);
   }
@@ -4224,23 +4213,6 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
     width: 21px;
     height: 21px;
   }
-  .workspace-page:has(.record-shortcut) {
-    padding-bottom: 56px;
-  }
-  .order-detail-page:has(.order-header > .action-bar > .button) {
-    padding-bottom: 68px;
-  }
-  /* Keep the list toolbar in place while its records scroll. */
-  .workspace:has(.workspace-page:not([hidden]) > :is(.orders-page, .stock-entries-page)) {
-    height: 100dvh;
-    overflow: hidden;
-  }
-  .workspace-main:has(.workspace-page:not([hidden]) > :is(.orders-page, .stock-entries-page)) {
-    flex: 1;
-  }
-  .workspace-page:has(> :is(.orders-page, .stock-entries-page)) {
-    padding-bottom: 0;
-  }
   .orders-page > .orders-list {
     container-type: inline-size;
     margin-bottom: 0;
@@ -4250,7 +4222,6 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
     /* Put the scrollbar in the panel padding and align cards with the filters. */
     margin-inline-end: calc(-1 * var(--space-3));
     grid-template-columns: minmax(0, min(100%, 100cqi));
-    padding-bottom: 56px;
   }
   .record-shortcut .action-label,
   .mobile-icon-only .action-label {
@@ -4274,9 +4245,6 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
     flex: 1;
     overflow-y: auto;
     overscroll-behavior-y: contain;
-  }
-  .stock-entries-page .virtual-records {
-    padding-bottom: 56px;
   }
   /* Include the space between cards in each virtual row's measured height. */
   .stock-entry-row {
@@ -4479,11 +4447,10 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
   min-height: 0;
   overflow-anchor: none;
 }
-.scroll-rows.paged-viewport > thead {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: var(--surface-raised);
+@media (min-width: 761px) {
+  .scroll-rows.paged-viewport {
+    max-height: none;
+  }
 }
 .scroll-rows.paged-viewport > :is(thead, tbody) {
   display: block;
@@ -4504,7 +4471,7 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
   margin: 0;
   list-style: none;
 }
-.paged-group:not(:last-child) {
+.paged-group:has(+ .paged-group) {
   padding-bottom: var(--space-3);
 }
 .paged-viewport:has(.paged-group) {
@@ -4512,8 +4479,25 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
   align-content: start;
 }
 .product-list-scroll-frame > .paged-viewport {
-  max-height: 74dvh;
+  max-height: none;
   overflow-y: auto;
+}
+@media (max-width: 760px) {
+  .workspace-page
+    :is(
+      .scroll-rows,
+      .category-list,
+      .orders-list > .mobile-records,
+      .inventory-page .component-scroll > .mobile-records
+    ).paged-viewport {
+    max-height: none;
+    overscroll-behavior: contain;
+  }
+  .inventory-page .component-scroll:has(> .mobile-records.paged-viewport) {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
 }
 
 .data-table.paged-viewport {

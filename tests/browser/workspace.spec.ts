@@ -131,3 +131,38 @@ test('a keyboard selection can reach the last customer outside the mounted optio
   await field.press('Enter');
   await expect(field).toHaveValue(name.trim());
 });
+
+test('mobile catalog scrolls records and editor fields inside a stationary workspace', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 600 });
+  await page.goto('/#/catalog');
+  await page.getByRole('button', { name: 'Try the demo', exact: true }).click();
+  const list = page.locator('.product-grid');
+  const filter = page.getByRole('button', { name: 'Filter products', exact: true });
+  const add = page.getByRole('button', { name: 'Add product', exact: true });
+  const bounds = await Promise.all([filter.boundingBox(), add.boundingBox()]);
+  await list.evaluate((el) => {
+    el.scrollTop = el.clientHeight;
+  });
+  await expect.poll(() => list.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+  expect(await Promise.all([filter.boundingBox(), add.boundingBox()])).toEqual(bounds);
+  await filter.click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('button', { name: 'Done' })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Done' }).click();
+  await add.click();
+  const fields = dialog.locator('.editor-fields');
+  const footer = dialog.locator('.action-bar');
+  const header = dialog.locator('.ui-modal-header');
+  await expect(footer).toBeInViewport();
+  await fields.evaluate((el) => {
+    el.scrollTop = el.scrollHeight;
+  });
+  await expect.poll(() => fields.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+  await expect(header).toBeInViewport();
+  await expect(footer).toBeInViewport();
+  expect(
+    await page.evaluate(
+      () => document.scrollingElement!.scrollHeight - document.documentElement.clientHeight,
+    ),
+  ).toBe(0);
+});

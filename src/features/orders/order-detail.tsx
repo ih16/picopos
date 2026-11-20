@@ -434,7 +434,7 @@ export function OrderDetail(props: OrderDetailProps) {
             )}
             {returns().length > 0 ? (
               <>
-                <Table desktopOnly class="paged-viewport">
+                <Table desktopOnly paged>
                   <thead>
                     <tr>
                       <th scope="col">Item</th>

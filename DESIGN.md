@@ -20,7 +20,7 @@ The top-right sun/moon toggle switches day and night mode. Theme colors live in 
 
 ## Components
 
-- **Shell.** Keep the wordmark at the left, primary page navigation in the center, and workbook identity at the right. Use round utility buttons for workbook actions. At 760 px and below, pin the navigation icons to the bottom of the viewport and let the document scroll. Keep dialogs and virtualized stock history independently scrollable.
+- **Shell.** Keep the wordmark at the left, primary page navigation in the center, and workbook identity at the right. Use round utility buttons for workbook actions. At 760 px and below, pin the navigation icons to the bottom of the viewport. Keep the workspace shell and list filters stationary. Scroll the records or form fields inside their available space, with clearance inside the scroller for overlapping floating actions. Dialogs scroll their fields between the header and footer.
 - **Journey.** Group the four main order stages into equal cards with genuine order previews and counts. Stage controls filter the order list. Order previews open the existing detail view. The board uses two columns at intermediate widths. On phones the order list and its status filter take priority, so the board is hidden.
 - **Panels and tables.** Use a heading, optional filters, and aligned columns within a rounded panel. Align quantities right. Keep wide tables scrollable within their panel and wrap long customer or product names.
 - **Metric cards.** Put the metric name above the value. Use a small semantic color dot and tabular digits. Calculate totals from the current workbook.

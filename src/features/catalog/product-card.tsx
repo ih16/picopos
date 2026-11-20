@@ -69,7 +69,7 @@ export function ProductCard(props: ProductCardProps) {
           <div class="product-variants">
             {props.variants.length > 0 ? (
               <>
-                <Table class="paged-viewport" desktopOnly aria-label={`Variants for ${props.product.name}`}>
+                <Table paged desktopOnly aria-label={`Variants for ${props.product.name}`}>
                   <thead>
                     <tr>
                       <th scope="col">Variant</th>
