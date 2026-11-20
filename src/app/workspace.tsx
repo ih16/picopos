@@ -63,6 +63,7 @@ export default function Workspace() {
     online,
     syncInterval,
     nextSyncAt,
+    retryAt,
     needsReconnect,
     connectionBusy,
     issues,
@@ -148,6 +149,7 @@ export default function Workspace() {
           expired={expired()}
           syncing={syncing()}
           busy={busy()}
+          retryAt={retryAt()}
           nextSyncAt={nextSyncAt()}
           lastSyncedAt={local()?.lastSyncedAt}
           syncError={syncError()}

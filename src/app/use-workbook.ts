@@ -34,6 +34,8 @@ import {
 } from '../infrastructure/storage/local-workbook';
 import {
   readSyncAttempt,
+  readSyncRetry,
+  syncRetryKey,
   readSyncInterval,
   storeSyncTiming,
   SYNC_INTERVAL_KEY,
@@ -79,6 +81,13 @@ export function useWorkbook(setError: Setter<string>, navigation: ReturnType<typ
   const [syncInterval, setSyncInterval] = createSignal(DEFAULT_SYNC_INTERVAL_SECONDS);
   const [nextSyncAt, setNextSyncAt] = createSignal<number>();
   const [lastAttempt, setLastAttempt] = createSignal(0);
+  const [quotaPause, setQuotaPause] = createSignal({ id: '', until: 0 });
+  const retryAt = createMemo(() => (quotaPause().id === saved()?.id ? quotaPause().until : 0));
+  let reauthorizedWorkbook: string | undefined;
+  const recordQuotaPause = (id: string, until: number) => {
+    storeSyncTiming(syncRetryKey(id), until);
+    setQuotaPause({ id, until });
+  };
   const needsReconnect = createMemo(() => online() && expired() && !demo() && !syncing());
   const [reconnectDismissed, setReconnectDismissed] = createSignal(false);
   createEffect(
@@ -110,7 +119,6 @@ export function useWorkbook(setError: Setter<string>, navigation: ReturnType<typ
     const message = cause instanceof Error ? cause.message : 'Something went wrong. Try again.';
     if (!local() || reconnecting) setAuthError(message);
     else setSyncError(message);
-    if (!local() && saved()) setExpired(true);
   };
 
   // Commands can follow another write in the same tick (reauthorization, reconnect, or a demo edit).
@@ -148,6 +156,15 @@ export function useWorkbook(setError: Setter<string>, navigation: ReturnType<typ
           setExpired(true);
           return;
         }
+        if (reconnecting) {
+          reauthorizedWorkbook = id;
+          setExpired(false);
+        }
+        const until = Math.max(readSyncRetry(id), retryAt());
+        if (startedAt < until) {
+          setQuotaPause({ id, until });
+          return;
+        }
         setLastAttempt(startedAt);
         storeSyncTiming(syncAttemptKey(id), startedAt);
 
@@ -162,9 +179,15 @@ export function useWorkbook(setError: Setter<string>, navigation: ReturnType<typ
             });
             break;
           } catch (cause) {
+            if (cause instanceof SheetsError && cause.retryAt !== undefined) {
+              recordQuotaPause(id, cause.retryAt);
+              setSyncError('Google Sheets temporarily limited requests. Sync will retry automatically.');
+              setAuthError(local() ? '' : cause.message);
+              return;
+            }
             if (!(cause instanceof SheetsError) || ![401, 403, 404].includes(cause.status ?? 0)) throw cause;
             if (await invalidateAccessSession(usedSession)) {
-              if (cause.status !== 401 && local()) setExpired(true);
+              setExpired(true);
               throw cause;
             }
             const renewed = await getSyncAccessSession(id);
@@ -175,13 +198,14 @@ export function useWorkbook(setError: Setter<string>, navigation: ReturnType<typ
             before = await readLocalWorkbook(id);
           }
         }
-        if (reconnecting) await rememberAccessToken(id, credential);
+        if (reauthorizedWorkbook === id) await rememberAccessToken(id, credential);
+        reauthorizedWorkbook = undefined;
         setExpired(false);
         setSyncError('');
         setAuthError('');
       });
     } catch (cause) {
-      await reportSyncFailure(cause, reconnecting || expired());
+      reportSyncFailure(cause, expired());
     } finally {
       setSyncing(false);
     }
@@ -203,6 +227,7 @@ export function useWorkbook(setError: Setter<string>, navigation: ReturnType<typ
     try {
       const cached = await readLocalWorkbook(id);
       setLastAttempt(readSyncAttempt(id));
+      setQuotaPause({ id, until: readSyncRetry(id) });
       if (cached) showLocal(cached);
       const authorized = await restoreAccessToken(id, true);
       if (saved()?.id !== id || demo()) return;
@@ -259,6 +284,7 @@ export function useWorkbook(setError: Setter<string>, navigation: ReturnType<typ
   const timingChanged = ({ key }: StorageEvent) => {
     if (key === SYNC_INTERVAL_KEY || key === null) setSyncInterval(readSyncInterval());
     const id = saved()?.id;
+    if (id && (key === syncRetryKey(id) || key === null)) setQuotaPause({ id, until: readSyncRetry(id) });
     if (id && (key === syncAttemptKey(id) || key === null)) setLastAttempt(readSyncAttempt(id));
   };
   createEventListener(document, 'visibilitychange', refreshVisible);
@@ -305,14 +331,21 @@ export function useWorkbook(setError: Setter<string>, navigation: ReturnType<typ
   createEffect(
     () =>
       [
-        local()?.lastSyncedAt,
+        local()?.lastSyncedAt ?? 0,
+        retryAt(),
         lastAttempt(),
         syncInterval(),
-        online() && !expired() && !busy() && !syncing() && !demo(),
+        Boolean(saved()) &&
+          !checkingSavedSession() &&
+          online() &&
+          !expired() &&
+          !busy() &&
+          !syncing() &&
+          !demo(),
       ] as const,
-    ([lastSync, attempt, interval, ready]) => {
-      if (lastSync === undefined || !ready) return;
-      const due = Math.max(lastSync, attempt) + interval * 1_000;
+    ([lastSync, until, attempt, interval, ready]) => {
+      if (!ready) return;
+      const due = Math.max(until, Math.max(lastSync, attempt) + interval * 1_000);
       const now = Date.now();
       const delay = Math.max(1_000, due - now);
       setNextSyncAt(now + delay);
@@ -349,6 +382,18 @@ export function useWorkbook(setError: Setter<string>, navigation: ReturnType<typ
     setAuthError('');
     try {
       await getWorkbookLocks().request(syncLock(selection.id), async () => {
+        const until = Math.max(
+          readSyncRetry(selection.id),
+          quotaPause().id === selection.id ? quotaPause().until : 0,
+        );
+        if (Date.now() < until) {
+          setAuthError(
+            'Google Sheets temporarily limited requests. Try again after ' +
+              new Date(until).toLocaleTimeString() +
+              '.',
+          );
+          return;
+        }
         const selected = await initializeWorkbook(session.value, selection.id, setup?.settings);
         if (!selected) {
           setSetupSelection(selection);
@@ -385,6 +430,11 @@ export function useWorkbook(setError: Setter<string>, navigation: ReturnType<typ
         void navigator.storage.persist?.().catch(() => {});
       });
     } catch (cause) {
+      if (cause instanceof SheetsError && cause.retryAt !== undefined) {
+        recordQuotaPause(selection.id, cause.retryAt);
+        setAuthError(cause.message);
+        return;
+      }
       if (cause instanceof SheetsError && cause.status === 401) {
         if (!(await invalidateAccessSession(session))) return;
       }
@@ -503,6 +553,7 @@ export function useWorkbook(setError: Setter<string>, navigation: ReturnType<typ
     online,
     syncInterval,
     nextSyncAt,
+    retryAt,
     needsReconnect,
     connectionBusy,
     issues,

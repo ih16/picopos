@@ -21,10 +21,9 @@ import {
   Modal,
   MultiSelect,
   Panel,
-  Table,
   Textarea,
 } from '../../shared/ui/controls';
-import { PagedRows } from '../../shared/ui/paged-rows';
+import { SortableTable } from '../../shared/ui/sortable-table';
 import { ListFilters } from '../../shared/ui/list-filters';
 import { ReconnectNotice } from '../auth/connection';
 
@@ -177,6 +176,8 @@ function CustomerForm(props: CustomerFormProps) {
 }
 
 export function Customers(props: CustomersProps) {
+  const customerOrderTotal = (order: CustomersProps['data']['Orders'][number]) =>
+    orderTotal(orderSubtotal(props.data['Order Items'].filter((item) => item.orderId === order.id)), order);
   const [search, setSearch] = createSignal('');
   const [statuses, setStatuses] = createSignal<string[]>([]);
   const { route, navigate } = useContext(ScreenNavigation);
@@ -271,49 +272,45 @@ export function Customers(props: CustomersProps) {
                 </ListFilters>
               </div>
               <div class="component-scroll">
-                <Table class="scroll-rows paged-viewport customers-table" aria-label="Customers">
-                  <thead>
-                    <tr>
-                      <th>Customer</th>
-                      <th>Phone or email</th>
-                      <th>Status</th>
-                      <th class="numeric">Orders</th>
-                    </tr>
-                  </thead>
-                  <PagedRows
-                    table
-                    rows={shown()}
-                    estimate={55}
-                    resetKey={JSON.stringify([query(), statuses()])}
-                  >
-                    {(page) => (
-                      <>
-                        <For each={page()}>
-                          {(entry) => (
-                            <tr>
-                              <td>
-                                <Button class="secondary" onClick={() => navigate(customerPath(entry.key))}>
-                                  {entry.customer.name}
-                                </Button>
-                              </td>
-                              <td>{entry.customer.contact || '—'}</td>
-                              <td>
-                                <Badge status={entry.customer.active ? 'Active' : 'Archived'}>
-                                  {!entry.saved
-                                    ? 'From orders'
-                                    : entry.customer.active
-                                      ? 'Active'
-                                      : 'Archived'}
-                                </Badge>
-                              </td>
-                              <td class="numeric">{entry.orders.length}</td>
-                            </tr>
-                          )}
-                        </For>
-                      </>
-                    )}
-                  </PagedRows>
-                </Table>
+                <SortableTable
+                  class="scroll-rows paged-viewport customers-table"
+                  aria-label="Customers"
+                  rows={shown()}
+                  estimate={55}
+                  resetKey={JSON.stringify([query(), statuses()])}
+                  columns={[
+                    { label: 'Customer', value: (r) => r.customer.name },
+                    { label: 'Phone or email', value: (r) => r.customer.contact },
+                    {
+                      label: 'Status',
+                      value: (r) => (!r.saved ? 'From orders' : r.customer.active ? 'Active' : 'Archived'),
+                    },
+                    { label: 'Orders', value: (r) => r.orders.length, class: 'numeric' },
+                  ]}
+                >
+                  {(page) => (
+                    <>
+                      <For each={page()}>
+                        {(entry) => (
+                          <tr>
+                            <td>
+                              <Button class="secondary" onClick={() => navigate(customerPath(entry.key))}>
+                                {entry.customer.name}
+                              </Button>
+                            </td>
+                            <td>{entry.customer.contact || '—'}</td>
+                            <td>
+                              <Badge status={entry.customer.active ? 'Active' : 'Archived'}>
+                                {!entry.saved ? 'From orders' : entry.customer.active ? 'Active' : 'Archived'}
+                              </Badge>
+                            </td>
+                            <td class="numeric">{entry.orders.length}</td>
+                          </tr>
+                        )}
+                      </For>
+                    </>
+                  )}
+                </SortableTable>
                 {!shown().length && (
                   <p class="empty">
                     {entries().length
@@ -370,50 +367,37 @@ export function Customers(props: CustomersProps) {
                 <span class="muted">{entry().orders.length} orders</span>
               </div>
               <div class="component-scroll">
-                <Table class="scroll-rows paged-viewport customer-orders-table" aria-label="Order history">
-                  <thead>
-                    <tr>
-                      <th>Order</th>
-                      <th>Date</th>
-                      <th>Status</th>
-                      <th>Payment</th>
-                      <th class="numeric">Total ({currency()})</th>
-                    </tr>
-                  </thead>
-                  <PagedRows
-                    table
-                    rows={[...entry().orders].sort((a, b) => b.createdAt.localeCompare(a.createdAt))}
-                    estimate={55}
-                  >
-                    {(page) => (
-                      <>
-                        {page().map((order) => (
-                          <tr>
-                            <td>{order.number}</td>
-                            <td>{order.createdAt.slice(0, 10)}</td>
-                            <td>
-                              <Badge status={order.status}>{order.status}</Badge>
-                            </td>
-                            <td>
-                              <Badge status={order.paymentStatus}>{order.paymentStatus}</Badge>
-                            </td>
-                            <td class="numeric">
-                              {decimalAmount(
-                                orderTotal(
-                                  orderSubtotal(
-                                    props.data['Order Items'].filter((item) => item.orderId === order.id),
-                                  ),
-                                  order,
-                                ),
-                                numberFormat(),
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </>
-                    )}
-                  </PagedRows>
-                </Table>
+                <SortableTable
+                  class="scroll-rows paged-viewport customer-orders-table"
+                  aria-label="Order history"
+                  rows={[...entry().orders].sort((a, b) => b.createdAt.localeCompare(a.createdAt))}
+                  estimate={55}
+                  columns={[
+                    { label: 'Order', value: (r) => r.number },
+                    { label: 'Date', value: (r) => r.createdAt },
+                    { label: 'Status', value: (r) => r.status },
+                    { label: 'Payment', value: (r) => r.paymentStatus },
+                    { label: `Total (${currency()})`, value: (r) => customerOrderTotal(r), class: 'numeric' },
+                  ]}
+                >
+                  {(page) => (
+                    <>
+                      {page().map((order) => (
+                        <tr>
+                          <td>{order.number}</td>
+                          <td>{order.createdAt.slice(0, 10)}</td>
+                          <td>
+                            <Badge status={order.status}>{order.status}</Badge>
+                          </td>
+                          <td>
+                            <Badge status={order.paymentStatus}>{order.paymentStatus}</Badge>
+                          </td>
+                          <td class="numeric">{decimalAmount(customerOrderTotal(order), numberFormat())}</td>
+                        </tr>
+                      ))}
+                    </>
+                  )}
+                </SortableTable>
                 {!entry().orders.length && <p class="empty">No orders yet.</p>}
               </div>
             </Panel>

@@ -1,10 +1,13 @@
 export class SheetsError extends Error {
   readonly status?: number;
 
-  constructor(message: string, status?: number) {
+  readonly retryAt?: number;
+
+  constructor(message: string, status?: number, retryAt?: number) {
     super(message);
     this.name = 'SheetsError';
     this.status = status;
+    this.retryAt = retryAt;
   }
 }
 
@@ -20,13 +23,29 @@ async function sendRequest<T>(url: URL, options: RequestInit): Promise<T> {
     const response = await fetch(url, { ...options, signal: controller.signal });
     if (response.ok) return (await response.json()) as T;
 
-    const payload = (await response.json().catch(() => null)) as { error?: { message?: string } } | null;
+    const payload = (await response.json().catch(() => null)) as {
+      error?: { message?: string; errors?: { reason?: string }[] };
+    } | null;
+    const quota =
+      response.status === 429 ||
+      (response.status === 403 &&
+        payload?.error?.errors?.some(
+          ({ reason }) => reason === 'rateLimitExceeded' || reason === 'userRateLimitExceeded',
+        ));
+    if (quota) {
+      const now = Date.now();
+      const header = response.headers.get('Retry-After')?.trim();
+      const retryAt = header && /^\d+$/.test(header) ? now + Number(header) * 1000 : Date.parse(header ?? '');
+      throw new SheetsError(
+        'Google Sheets is receiving too many requests. Wait before trying again.',
+        response.status,
+        Number.isSafeInteger(retryAt) && retryAt > now ? retryAt : now + 60_000,
+      );
+    }
     let message = payload?.error?.message || `Google Sheets returned HTTP ${response.status}.`;
     if (response.status === 401) message = 'Your Google session expired. Reconnect to continue.';
     if (response.status === 403)
       message = 'Google Sheets denied access. Check your permissions and reconnect the workbook.';
-    if (response.status === 429)
-      message = 'Google Sheets is receiving too many requests. Wait a moment and try again.';
     throw new SheetsError(message, response.status);
   } catch (cause) {
     if (!controller.signal.aborted && !(cause instanceof TypeError)) throw cause;
@@ -63,8 +82,7 @@ export async function request<T>(
     } catch (cause) {
       const retryable =
         cause instanceof SheetsNetworkError ||
-        (cause instanceof SheetsError &&
-          (cause.status === 429 || (cause.status !== undefined && cause.status >= 500)));
+        (cause instanceof SheetsError && cause.status !== undefined && cause.status >= 500);
       // An uncertain write must be reconciled by a fresh sync, never blindly repeated.
       if (body !== undefined || !retryable || attempt + 1 >= MAX_READ_ATTEMPTS) throw cause;
       await new Promise<void>((resolve) => setTimeout(resolve, 750 * 2 ** attempt + Math.random() * 250));

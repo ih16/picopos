@@ -21,8 +21,8 @@ import {
   Modal,
   Panel,
   SelectField,
-  Table,
 } from '../../shared/ui/controls';
+import { SortableTable } from '../../shared/ui/sortable-table';
 import { PagedRows } from '../../shared/ui/paged-rows';
 import { Icon } from '../../shared/ui/icon';
 import { ListFilters } from '../../shared/ui/list-filters';
@@ -458,68 +458,60 @@ export function Inventory(props: InventoryProps) {
             <div class="component-scroll">
               {rows().length ? (
                 !mobile() ? (
-                  <Table
+                  <SortableTable
                     desktopOnly
                     class="scroll-rows paged-viewport stock-balances-table"
                     aria-label="Stock balances"
+                    rows={rows()}
+                    estimate={55}
+                    resetKey={search()}
+                    columns={[
+                      {
+                        label: 'Product',
+                        value: (r) => variantsById().get(r.variantId)?.label || 'Unknown variant',
+                      },
+                      { label: 'On hand', value: (r) => r.onHand, class: 'numeric' },
+                      { label: 'Reserved', value: (r) => r.reserved, class: 'numeric' },
+                      { label: 'Unavailable', value: (r) => r.unavailable, class: 'numeric' },
+                      { label: 'Available', value: (r) => r.available, class: 'numeric' },
+                      { label: 'Actions', class: 'table-actions' },
+                    ]}
                   >
-                    <thead>
-                      <tr>
-                        <th scope="col">Product</th>
-                        <th scope="col" class="numeric">
-                          On hand
-                        </th>
-                        <th scope="col" class="numeric">
-                          Reserved
-                        </th>
-                        <th scope="col" class="numeric">
-                          Unavailable
-                        </th>
-                        <th scope="col" class="numeric">
-                          Available
-                        </th>
-                        <th scope="col" class="table-actions">
-                          <span class="sr-only">Actions</span>
-                        </th>
-                      </tr>
-                    </thead>
-                    <PagedRows table rows={rows()} estimate={55} resetKey={search()}>
-                      {(page) => (
-                        <>
-                          {page().map((row) => {
-                            const variant = variantsById().get(row.variantId)!;
-                            return (
-                              <tr>
-                                <th scope="row">
-                                  <ProductLabel name={variant.label} image={variant.image}>
-                                    {variant.label}
-                                    <span class="inventory-row-meta sku">{variant.sku}</span>
-                                  </ProductLabel>
-                                </th>
-                                <td class="numeric">{row.onHand}</td>
-                                <td class="numeric">{row.reserved}</td>
-                                <td class="numeric">{row.unavailable}</td>
-                                <td class={['numeric', row.available < 0 && 'negative']}>
-                                  <strong>{row.available}</strong>
-                                </td>
-                                <td class="table-actions">
-                                  <Button
-                                    class="secondary compact catalog-icon-button"
-                                    disabled={props.busy}
-                                    title="Add stock entry"
-                                    aria-label={`Add stock entry for ${variant.sku}`}
-                                    onClick={() => startEntry(row.variantId)}
-                                  >
-                                    <Icon name="plus" />
-                                  </Button>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </>
-                      )}
-                    </PagedRows>
-                  </Table>
+                    {(page) => (
+                      <>
+                        {page().map((row) => {
+                          const variant = variantsById().get(row.variantId)!;
+                          return (
+                            <tr>
+                              <th scope="row">
+                                <ProductLabel name={variant.label} image={variant.image}>
+                                  {variant.label}
+                                  <span class="inventory-row-meta sku">{variant.sku}</span>
+                                </ProductLabel>
+                              </th>
+                              <td class="numeric">{row.onHand}</td>
+                              <td class="numeric">{row.reserved}</td>
+                              <td class="numeric">{row.unavailable}</td>
+                              <td class={['numeric', row.available < 0 && 'negative']}>
+                                <strong>{row.available}</strong>
+                              </td>
+                              <td class="table-actions">
+                                <Button
+                                  class="secondary compact catalog-icon-button"
+                                  disabled={props.busy}
+                                  title="Add stock entry"
+                                  aria-label={`Add stock entry for ${variant.sku}`}
+                                  onClick={() => startEntry(row.variantId)}
+                                >
+                                  <Icon name="plus" />
+                                </Button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </>
+                    )}
+                  </SortableTable>
                 ) : (
                   <ul class="mobile-records paged-viewport" aria-label="Stock balances">
                     <PagedRows list rows={rows()} estimate={128} resetKey={search()}>
@@ -589,73 +581,76 @@ export function Inventory(props: InventoryProps) {
             <div class="component-scroll virtual-scroll">
               {history().length ? (
                 !mobile() ? (
-                  <Table
+                  <SortableTable
                     desktopOnly
                     class="scroll-rows paged-viewport stock-entries-table"
                     aria-label="Stock entries"
+                    rows={history()}
+                    estimate={55}
+                    resetKey={search()}
+                    columns={[
+                      { label: 'Date', value: (r) => r.date },
+                      {
+                        label: 'Variant',
+                        value: (r) => variantsById().get(r.variantId)?.label || 'Unknown variant',
+                      },
+                      { label: 'Entry', value: (r) => r.type },
+                      { label: 'Stock change', value: (r) => r.onHandDelta, class: 'numeric' },
+                      {
+                        label: 'Purchase lot',
+                        value: (r) =>
+                          props.data['Purchase Lots'].find((lot) => lot.id === r.purchaseLotId)?.name ||
+                          'No purchase lot',
+                      },
+                      { label: 'Actions', class: 'table-actions' },
+                    ]}
                   >
-                    <thead>
-                      <tr>
-                        <th scope="col">Date</th>
-                        <th scope="col">Variant</th>
-                        <th scope="col">Entry</th>
-                        <th scope="col" class="numeric">
-                          Stock change
-                        </th>
-                        <th scope="col">Purchase lot</th>
-                        <th scope="col" class="table-actions">
-                          <span class="sr-only">Actions</span>
-                        </th>
-                      </tr>
-                    </thead>
-                    <PagedRows table rows={history()} estimate={55} resetKey={search()}>
-                      {(page) => (
-                        <>
-                          {page().map((entry) => (
-                            <tr data-virtual-id={entry.id}>
-                              <td>{entry.date.slice(0, 10)}</td>
-                              <td>
-                                <ProductLabel
-                                  name={variantsById().get(entry.variantId)?.label || 'Unknown variant'}
-                                  image={variantsById().get(entry.variantId)?.image}
-                                >
-                                  {variantsById().get(entry.variantId)?.label || 'Unknown variant'}
-                                </ProductLabel>
-                              </td>
-                              <td>
-                                <Badge>{entry.type}</Badge>
-                                {entry.notes && <span class="inventory-row-meta">{entry.notes}</span>}
-                              </td>
-                              <td class="numeric">
-                                {signedQuantity(entry.onHandDelta)}
-                                <span class="inventory-row-meta">on hand</span>
-                                {entry.unavailableDelta !== 0 && (
-                                  <span class="inventory-row-meta">
-                                    {signedQuantity(entry.unavailableDelta)} unavailable
-                                  </span>
-                                )}
-                              </td>
-                              <td>
-                                {props.data['Purchase Lots'].find((lot) => lot.id === entry.purchaseLotId)
-                                  ?.name || 'No purchase lot'}
-                              </td>
-                              <td class="table-actions">
-                                <Button
-                                  class="secondary compact catalog-icon-button"
-                                  disabled={props.busy}
-                                  title="Change purchase lot"
-                                  aria-label={`Change purchase lot for ${variantsById().get(entry.variantId)?.label || 'stock entry'}`}
-                                  onClick={() => changeLot(entry)}
-                                >
-                                  <Icon name="edit" />
-                                </Button>
-                              </td>
-                            </tr>
-                          ))}
-                        </>
-                      )}
-                    </PagedRows>
-                  </Table>
+                    {(page) => (
+                      <>
+                        {page().map((entry) => (
+                          <tr data-virtual-id={entry.id}>
+                            <td>{entry.date.slice(0, 10)}</td>
+                            <td>
+                              <ProductLabel
+                                name={variantsById().get(entry.variantId)?.label || 'Unknown variant'}
+                                image={variantsById().get(entry.variantId)?.image}
+                              >
+                                {variantsById().get(entry.variantId)?.label || 'Unknown variant'}
+                              </ProductLabel>
+                            </td>
+                            <td>
+                              <Badge>{entry.type}</Badge>
+                              {entry.notes && <span class="inventory-row-meta">{entry.notes}</span>}
+                            </td>
+                            <td class="numeric">
+                              {signedQuantity(entry.onHandDelta)}
+                              <span class="inventory-row-meta">on hand</span>
+                              {entry.unavailableDelta !== 0 && (
+                                <span class="inventory-row-meta">
+                                  {signedQuantity(entry.unavailableDelta)} unavailable
+                                </span>
+                              )}
+                            </td>
+                            <td>
+                              {props.data['Purchase Lots'].find((lot) => lot.id === entry.purchaseLotId)
+                                ?.name || 'No purchase lot'}
+                            </td>
+                            <td class="table-actions">
+                              <Button
+                                class="secondary compact catalog-icon-button"
+                                disabled={props.busy}
+                                title="Change purchase lot"
+                                aria-label={`Change purchase lot for ${variantsById().get(entry.variantId)?.label || 'stock entry'}`}
+                                onClick={() => changeLot(entry)}
+                              >
+                                <Icon name="edit" />
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </>
+                    )}
+                  </SortableTable>
                 ) : (
                   <ul class="mobile-records paged-viewport virtual-records" aria-label="Stock entries">
                     <PagedRows list rows={history()} estimate={128} resetKey={search()}>

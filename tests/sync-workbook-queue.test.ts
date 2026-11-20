@@ -59,3 +59,41 @@ test('sync leaves the outbox untouched when the batch cannot confirm its writes'
     /Readback failed/,
   );
 });
+
+test('a rate limit mid-sync retains the unconfirmed batch for the next sync', async () => {
+  const first = categoryEdit('first');
+  const second = categoryEdit('second');
+  let stored: LocalWorkbook = { version: 1, base: book, pending: [first, second] };
+  const updateLocal = async (update: (latest: LocalWorkbook | undefined) => LocalWorkbook) =>
+    (stored = update(stored));
+  const onSnapshot = () => {};
+  await assert.rejects(
+    syncWorkbookQueue({
+      pending: stored.pending,
+      updateLocal,
+      onSnapshot,
+      syncBatch: async (pending) => {
+        if (pending.length === 1) throw new Error('quota reached');
+        return { base: book, acknowledged: [first.id], blocked: {}, remaining: true };
+      },
+    }),
+    /quota reached/,
+  );
+  assert.deepEqual(
+    stored.pending.map((edit) => edit.id),
+    [second.id],
+  );
+  await syncWorkbookQueue({
+    pending: stored.pending,
+    updateLocal,
+    onSnapshot,
+    syncBatch: async (pending) => {
+      assert.deepEqual(
+        pending.map((edit) => edit.id),
+        [second.id],
+      );
+      return { base: book, acknowledged: [second.id], blocked: {}, remaining: false };
+    },
+  });
+  assert.deepEqual(stored.pending, []);
+});

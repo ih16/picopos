@@ -15,6 +15,7 @@ type SyncSettingsProps = {
   syncing: boolean;
   busy: boolean;
   nextSyncAt?: number;
+  retryAt: number;
   lastSyncedAt?: number;
   syncError?: string;
   onSync: () => void | Promise<void>;
@@ -74,6 +75,7 @@ export function SyncSettings(props: SyncSettingsProps) {
       ? new Date(props.lastSyncedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
       : undefined,
   );
+  const quotaPaused = () => props.retryAt > (now() || Date.now());
   const status = createMemo(() =>
     !props.online
       ? 'Offline'
@@ -81,15 +83,17 @@ export function SyncSettings(props: SyncSettingsProps) {
         ? 'Syncing…'
         : props.expired
           ? 'Reconnect to sync'
-          : props.syncError
-            ? 'Sync delayed'
-            : blocked() && blocked() === count()
-              ? 'Changes need attention'
-              : count()
-                ? 'Waiting to sync'
-                : lastSync()
-                  ? `Last synced ${lastSync()}`
-                  : 'Ready to sync',
+          : quotaPaused()
+            ? 'Waiting for Google Sheets quota'
+            : props.syncError
+              ? 'Sync delayed'
+              : blocked() && blocked() === count()
+                ? 'Changes need attention'
+                : count()
+                  ? 'Waiting to sync'
+                  : lastSync()
+                    ? `Last synced ${lastSync()}`
+                    : 'Ready to sync',
   );
 
   return (
@@ -104,7 +108,7 @@ export function SyncSettings(props: SyncSettingsProps) {
         />
         <Button
           type="button"
-          disabled={props.busy || props.syncing || !props.online}
+          disabled={props.busy || props.syncing || !props.online || quotaPaused()}
           aria-label={count() ? `Sync now, ${queueLabel()}` : 'Sync now'}
           onClick={props.onSync}
         >

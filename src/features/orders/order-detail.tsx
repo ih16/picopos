@@ -20,8 +20,9 @@ import {
   RETURN_CONDITIONS,
 } from '../../domain/workbook';
 import { money } from '../../shared/lib/format';
+import { SortableTable } from '../../shared/ui/sortable-table';
 import { PagedRows } from '../../shared/ui/paged-rows';
-import { ActionBar, Badge, Button, Input, Panel, SelectField, Table } from '../../shared/ui/controls';
+import { ActionBar, Badge, Button, Input, Panel, SelectField } from '../../shared/ui/controls';
 import { ProductLabel } from '../../shared/ui/product-thumbnail';
 import { countRemaining, dateLabel, indexOrderRows, quantityLabel, returnLabel } from './order-helpers';
 import type { OrdersProps } from './order-types';
@@ -171,49 +172,42 @@ export function OrderDetail(props: OrderDetailProps) {
         </Panel>
         <Panel class="stack detail-items">
           <h2>Order items</h2>
-          <Table desktopOnly paged>
-            <thead>
-              <tr>
-                <th scope="col">Item</th>
-                <th scope="col">SKU</th>
-                <th scope="col">Quantity</th>
-                <th scope="col">Unit price</th>
-                <th scope="col">Total</th>
-              </tr>
-            </thead>
-            <PagedRows rows={items()} table estimate={56}>
-              {(page) => (
-                <For each={page()}>
-                  {(item) => (
-                    <tr>
-                      <td>
-                        <ProductLabel
-                          name={item.productName}
-                          image={products().get(variants().get(item.variantId)?.productId ?? '')?.image}
-                        >
-                          <strong>{item.productName}</strong>
-                          <span class="inventory-row-meta muted">{item.variantName}</span>
-                        </ProductLabel>
-                      </td>
-                      <td>{item.sku}</td>
-                      <td>{item.quantity}</td>
-                      <td>{money(item.unitPrice, currency(), numberFormat())}</td>
-                      <td>
-                        {money(lineSubtotal(item.quantity, item.unitPrice), currency(), numberFormat())}
-                      </td>
-                    </tr>
-                  )}
-                </For>
-              )}
-            </PagedRows>
-            <tbody>
-              {!items().length && (
-                <tr>
-                  <td colspan={5}>This order has no items.</td>
-                </tr>
-              )}
-            </tbody>
-          </Table>
+          <SortableTable
+            desktopOnly
+            paged
+            rows={items()}
+            estimate={56}
+            columns={[
+              { label: 'Item', value: (r) => [r.productName, r.variantName].join(' ') },
+              { label: 'SKU', value: (r) => r.sku },
+              { label: 'Quantity', value: (r) => r.quantity },
+              { label: 'Unit price', value: (r) => r.unitPrice },
+              { label: 'Total', value: (r) => lineSubtotal(r.quantity, r.unitPrice) },
+            ]}
+            emptyMessage="This order has no items."
+          >
+            {(page) => (
+              <For each={page()}>
+                {(item) => (
+                  <tr>
+                    <td>
+                      <ProductLabel
+                        name={item.productName}
+                        image={products().get(variants().get(item.variantId)?.productId ?? '')?.image}
+                      >
+                        <strong>{item.productName}</strong>
+                        <span class="inventory-row-meta muted">{item.variantName}</span>
+                      </ProductLabel>
+                    </td>
+                    <td>{item.sku}</td>
+                    <td>{item.quantity}</td>
+                    <td>{money(item.unitPrice, currency(), numberFormat())}</td>
+                    <td>{money(lineSubtotal(item.quantity, item.unitPrice), currency(), numberFormat())}</td>
+                  </tr>
+                )}
+              </For>
+            )}
+          </SortableTable>
           <div class="mobile-records paged-viewport">
             <PagedRows rows={items()} estimate={100}>
               {(page) => (
@@ -480,56 +474,60 @@ export function OrderDetail(props: OrderDetailProps) {
               )}
               {returns().length > 0 ? (
                 <>
-                  <Table desktopOnly paged>
-                    <thead>
-                      <tr>
-                        <th scope="col">Item</th>
-                        <th scope="col">Quantity</th>
-                        <th scope="col">Status</th>
-                        <th scope="col">Condition</th>
-                        <th scope="col">Notes</th>
-                      </tr>
-                    </thead>
-                    <PagedRows rows={returns()} table estimate={56}>
-                      {(page) => (
-                        <For each={page()}>
-                          {(entry) => (
-                            <tr>
-                              <td>
-                                <ProductLabel
-                                  name={itemById().get(entry.orderItemId)?.productName || 'Order item'}
-                                  image={
-                                    products().get(
-                                      variants().get(itemById().get(entry.orderItemId)?.variantId ?? '')
-                                        ?.productId ?? '',
-                                    )?.image
-                                  }
-                                >
-                                  {itemById().get(entry.orderItemId)?.productName || 'Order item'}
-                                  <span class="inventory-row-meta muted">
-                                    {itemById().get(entry.orderItemId)?.variantName} ·{' '}
-                                    {itemById().get(entry.orderItemId)?.sku}
-                                  </span>
-                                </ProductLabel>
-                              </td>
-                              <td>{entry.quantity}</td>
-                              <td>
-                                <Badge status={entry.status}>{entry.status}</Badge>
-                              </td>
-                              <td>
-                                {entry.status === 'Requested' && canReturn() ? (
-                                  <ReceiveReturn entry={entry} busy={props.busy} onCommit={props.onCommit} />
-                                ) : (
-                                  entry.condition || '—'
-                                )}
-                              </td>
-                              <td>{entry.notes || '—'}</td>
-                            </tr>
-                          )}
-                        </For>
-                      )}
-                    </PagedRows>
-                  </Table>
+                  <SortableTable
+                    desktopOnly
+                    paged
+                    rows={returns()}
+                    estimate={56}
+                    columns={[
+                      {
+                        label: 'Item',
+                        value: (r) => itemById().get(r.orderItemId)?.productName || 'Order item',
+                      },
+                      { label: 'Quantity', value: (r) => r.quantity },
+                      { label: 'Status', value: (r) => r.status },
+                      { label: 'Condition', value: (r) => r.condition || '' },
+                      { label: 'Notes', value: (r) => r.notes || '' },
+                    ]}
+                  >
+                    {(page) => (
+                      <For each={page()}>
+                        {(entry) => (
+                          <tr>
+                            <td>
+                              <ProductLabel
+                                name={itemById().get(entry.orderItemId)?.productName || 'Order item'}
+                                image={
+                                  products().get(
+                                    variants().get(itemById().get(entry.orderItemId)?.variantId ?? '')
+                                      ?.productId ?? '',
+                                  )?.image
+                                }
+                              >
+                                {itemById().get(entry.orderItemId)?.productName || 'Order item'}
+                                <span class="inventory-row-meta muted">
+                                  {itemById().get(entry.orderItemId)?.variantName} ·{' '}
+                                  {itemById().get(entry.orderItemId)?.sku}
+                                </span>
+                              </ProductLabel>
+                            </td>
+                            <td>{entry.quantity}</td>
+                            <td>
+                              <Badge status={entry.status}>{entry.status}</Badge>
+                            </td>
+                            <td>
+                              {entry.status === 'Requested' && canReturn() ? (
+                                <ReceiveReturn entry={entry} busy={props.busy} onCommit={props.onCommit} />
+                              ) : (
+                                entry.condition || '—'
+                              )}
+                            </td>
+                            <td>{entry.notes || '—'}</td>
+                          </tr>
+                        )}
+                      </For>
+                    )}
+                  </SortableTable>
                   <div class="mobile-records paged-viewport">
                     <PagedRows rows={returns()} estimate={100}>
                       {(page) => (

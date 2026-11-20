@@ -331,7 +331,7 @@ input[type='radio'] {
 }
 textarea {
   min-height: 5rem;
-  resize: vertical;
+  resize: none;
 }
 .switch-control {
   display: flex;
@@ -446,6 +446,7 @@ textarea {
   pointer-events: none;
 }
 .data-table > thead th {
+  position: relative;
   padding-block: var(--space-3);
 }
 .data-table td {
@@ -511,6 +512,29 @@ textarea {
 }
 .data-table button {
   white-space: nowrap;
+}
+.data-table .table-sort {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  white-space: normal;
+  cursor: pointer;
+}
+.table-sort::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+.table-sort span {
+  margin-inline-start: 0.25em;
+}
+th[aria-sort] .table-sort {
+  color: var(--ink);
 }
 .data-table tfoot td,
 .data-table tfoot th {

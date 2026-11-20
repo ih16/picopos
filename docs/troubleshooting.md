@@ -15,6 +15,8 @@ Do not share access tokens, browser storage dumps, or private workbook contents 
 
 Automatic sync runs in an open, visible app at the configured interval, with additional checks when the tab becomes visible or the browser comes online. Closing every tab stops sync. **Sync now** bypasses the interval, but still needs network access and authorization.
 
+When Google Sheets limits requests, Settings shows a quota pause. Tabs syncing the same workbook share the retry deadline. Sync respects Google’s `Retry-After` header or waits one minute when Google supplies no deadline. You can continue saving locally during the pause.
+
 If a write times out, leave the queue intact and sync again. A timeout does not establish whether Google applied the write. The next sync reads fresh data and uses stable IDs and field comparisons to recognize already-applied edits.
 
 A validation issue remains attached to its queued operation. Inspect the preview, correct the underlying workbook problem (for example insufficient stock or a missing reference), then sync again. If the local operation is no longer wanted, discard that operation from the preview. Discarding removes the queued intent; it is not an undo for a write already applied to Sheets. Dependent operations may need review afterward.

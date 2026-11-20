@@ -78,7 +78,7 @@ for (const width of [1440, 390]) {
       await page.goto('/#/orders');
       await page.getByRole('button', { name: 'Try the demo', exact: true }).click();
       const list = page.locator('.orders-list .paged-viewport');
-      const buttons = list.getByRole('button');
+      const buttons = width === 1440 ? list.locator('tbody button') : list.getByRole('button');
       const number = async () =>
         width === 1440 ? buttons.first().innerText() : list.locator('.mobile-record p').first().innerText();
       const initialNumber = await number();
@@ -106,6 +106,15 @@ for (const width of [1440, 390]) {
         el.scrollTop = 0;
       });
       await expect.poll(number).toBe(initialNumber);
+      if (width === 1440) {
+        const header = list.getByRole('columnheader', { name: 'Order', exact: true });
+        await header.getByRole('button').click();
+        await expect(header).toHaveAttribute('aria-sort', 'ascending');
+        const lowest = await number();
+        await header.getByRole('button').press('Enter');
+        await expect(header).toHaveAttribute('aria-sort', 'descending');
+        expect(lowest.localeCompare(await number(), undefined, { numeric: true })).toBeLessThan(0);
+      }
       if (width === 390) await page.getByRole('button', { name: 'Filter orders' }).click();
       await page.getByRole('searchbox', { name: 'Search orders' }).fill(last);
       if (width === 390) await page.getByRole('button', { name: 'Done', exact: true }).click();
@@ -254,7 +263,7 @@ for (const width of [1280, 390]) {
 test('staff can record and update partial payments and refunds', async ({ page }) => {
   await page.goto('/#/orders');
   await page.getByRole('button', { name: 'Try the demo', exact: true }).click();
-  await page.locator('.orders-list .paged-viewport:visible').getByRole('button').first().click();
+  await page.locator('.orders-list .paged-viewport:visible tbody button').first().click();
   const detail = page.locator('.order-detail-page:visible');
   for (const [status, field, result] of [
     ['Partially paid', 'Amount paid', 'Balance due'],

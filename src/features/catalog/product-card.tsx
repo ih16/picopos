@@ -1,8 +1,9 @@
 import { For } from 'solid-js';
 import type { Product, Variant } from '../../domain/workbook';
 import { decimalAmount } from '../../shared/lib/format';
+import { SortableTable } from '../../shared/ui/sortable-table';
 import { PagedRows } from '../../shared/ui/paged-rows';
-import { Badge, Button, Table } from '../../shared/ui/controls';
+import { Badge, Button } from '../../shared/ui/controls';
 import { Icon } from '../../shared/ui/icon';
 import { ProductLabel, ProductPhoto } from '../../shared/ui/product-thumbnail';
 import { newVariant } from './catalog-options';
@@ -69,54 +70,52 @@ export function ProductCard(props: ProductCardProps) {
           <div class="product-variants">
             {props.variants.length > 0 ? (
               <>
-                <Table paged desktopOnly aria-label={`Variants for ${props.product.name}`}>
-                  <thead>
-                    <tr>
-                      <th scope="col">Variant</th>
-                      <th scope="col">SKU</th>
-                      <th scope="col" class="numeric">
-                        Price ({props.currency})
-                      </th>
-                      <th scope="col">Status</th>
-                      <th scope="col">
-                        <span class="sr-only">Action</span>
-                      </th>
-                    </tr>
-                  </thead>
-                  <PagedRows rows={props.variants} table estimate={56}>
-                    {(page) => (
-                      <For each={page()}>
-                        {(row) => {
-                          const variantStatus = row.active ? 'Active' : 'Archived';
-                          return (
-                            <tr>
-                              <td>
-                                <ProductLabel name={props.product.name} image={props.product.image}>
-                                  {row.optionValues || 'Default'}
-                                </ProductLabel>
-                              </td>
-                              <td class="sku">{row.sku}</td>
-                              <td class="numeric">{decimalAmount(row.price, props.numberFormat)}</td>
-                              <td>
-                                <Badge status={variantStatus}>{variantStatus}</Badge>
-                              </td>
-                              <td>
-                                <Button
-                                  class="secondary compact catalog-icon-button"
-                                  title="Edit variant"
-                                  aria-label={`Edit variant ${row.sku}`}
-                                  onClick={() => props.onEditVariant(row)}
-                                >
-                                  <Icon name="edit" />
-                                </Button>
-                              </td>
-                            </tr>
-                          );
-                        }}
-                      </For>
-                    )}
-                  </PagedRows>
-                </Table>
+                <SortableTable
+                  paged
+                  desktopOnly
+                  aria-label={`Variants for ${props.product.name}`}
+                  rows={props.variants}
+                  estimate={56}
+                  columns={[
+                    { label: 'Variant', value: (r) => r.optionValues || 'Default' },
+                    { label: 'SKU', value: (r) => r.sku },
+                    { label: `Price (${props.currency})`, value: (r) => r.price, class: 'numeric' },
+                    { label: 'Status', value: (r) => (r.active ? 'Active' : 'Archived') },
+                    { label: 'Action' },
+                  ]}
+                >
+                  {(page) => (
+                    <For each={page()}>
+                      {(row) => {
+                        const variantStatus = row.active ? 'Active' : 'Archived';
+                        return (
+                          <tr>
+                            <td>
+                              <ProductLabel name={props.product.name} image={props.product.image}>
+                                {row.optionValues || 'Default'}
+                              </ProductLabel>
+                            </td>
+                            <td class="sku">{row.sku}</td>
+                            <td class="numeric">{decimalAmount(row.price, props.numberFormat)}</td>
+                            <td>
+                              <Badge status={variantStatus}>{variantStatus}</Badge>
+                            </td>
+                            <td>
+                              <Button
+                                class="secondary compact catalog-icon-button"
+                                title="Edit variant"
+                                aria-label={`Edit variant ${row.sku}`}
+                                onClick={() => props.onEditVariant(row)}
+                              >
+                                <Icon name="edit" />
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      }}
+                    </For>
+                  )}
+                </SortableTable>
                 <ul class="mobile-records paged-viewport" aria-label={`Variants for ${props.product.name}`}>
                   <PagedRows rows={props.variants} list estimate={100}>
                     {(page) => (

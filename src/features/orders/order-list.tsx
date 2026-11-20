@@ -7,8 +7,9 @@ import { orderSubtotal, orderTotal } from '../../domain/order-totals';
 import { workbookCurrency, workbookNumberFormat } from '../../domain/settings';
 import { ORDER_STATUSES, type Order } from '../../domain/workbook';
 import { money } from '../../shared/lib/format';
+import { SortableTable } from '../../shared/ui/sortable-table';
 import { PagedRows } from '../../shared/ui/paged-rows';
-import { ActionBar, Badge, Button, Input, MultiSelect, Panel, Table } from '../../shared/ui/controls';
+import { ActionBar, Badge, Button, Input, MultiSelect, Panel } from '../../shared/ui/controls';
 import { Icon } from '../../shared/ui/icon';
 import { ListFilters } from '../../shared/ui/list-filters';
 import { dateLabel, indexOrderRows, returnLabel } from './order-helpers';
@@ -40,10 +41,12 @@ export function OrderList(props: OrdersProps) {
           [order.number, order.customer, order.contact].some((field) => field.toLowerCase().includes(term))),
     );
   });
+  const totalFor = (order: Order) =>
+    orderTotal(orderSubtotal(orderIndex().itemsByOrder.get(order.id) ?? []), order);
   const summarize = (order: Order) => {
     const orderItems = orderIndex().itemsByOrder.get(order.id) ?? [];
     const returnStatus = returnLabel(orderItems, orderIndex().returnsByOrder.get(order.id) ?? []);
-    const total = money(orderTotal(orderSubtotal(orderItems), order), currency(), numberFormat());
+    const total = money(totalFor(order), currency(), numberFormat());
     return { total, returnStatus };
   };
   return (
@@ -148,57 +151,52 @@ export function OrderList(props: OrdersProps) {
         </div>
         {visible().length > 0 ? (
           !mobile() ? (
-            <Table
+            <SortableTable
               desktopOnly
               class="scroll-rows paged-viewport orders-table"
               aria-labelledby="order-list-title"
+              rows={visible()}
+
+              estimate={52}
+              resetKey={JSON.stringify([query(), statusFilter()])}
+              columns={[
+                { label: 'Order', value: (r) => r.number },
+                { label: 'Customer', value: (r) => r.customer },
+                { label: 'Date', value: (r) => r.createdAt },
+                { label: 'Status', value: (r) => r.status },
+                { label: 'Payment', value: (r) => r.paymentStatus },
+                { label: 'Total', value: (r) => totalFor(r) },
+              ]}
             >
-              <thead>
-                <tr>
-                  <th scope="col">Order</th>
-                  <th scope="col">Customer</th>
-                  <th scope="col">Date</th>
-                  <th scope="col">Status</th>
-                  <th scope="col">Payment</th>
-                  <th scope="col">Total</th>
-                </tr>
-              </thead>
-              <PagedRows
-                rows={visible()}
-                table
-                estimate={52}
-                resetKey={JSON.stringify([query(), statusFilter()])}
-              >
-                {(page) => (
-                  <>
-                    {page().map((order) => {
-                      const { total, returnStatus } = summarize(order);
-                      return (
-                        <tr>
-                          <td>
-                            <Button type="button" class="secondary" onClick={() => openOrder(order.id)}>
-                              {order.number}
-                            </Button>
-                          </td>
-                          <td>{order.customer}</td>
-                          <td>{dateLabel(order.createdAt)}</td>
-                          <td>
-                            <div class="row">
-                              <Badge status={order.status}>{order.status}</Badge>
-                              {returnStatus && <Badge status={returnStatus}>{returnStatus}</Badge>}
-                            </div>
-                          </td>
-                          <td>
-                            <Badge status={order.paymentStatus}>{order.paymentStatus}</Badge>
-                          </td>
-                          <td>{total}</td>
-                        </tr>
-                      );
-                    })}
-                  </>
-                )}
-              </PagedRows>
-            </Table>
+              {(page) => (
+                <>
+                  {page().map((order) => {
+                    const { total, returnStatus } = summarize(order);
+                    return (
+                      <tr>
+                        <td>
+                          <Button type="button" class="secondary" onClick={() => openOrder(order.id)}>
+                            {order.number}
+                          </Button>
+                        </td>
+                        <td>{order.customer}</td>
+                        <td>{dateLabel(order.createdAt)}</td>
+                        <td>
+                          <div class="row">
+                            <Badge status={order.status}>{order.status}</Badge>
+                            {returnStatus && <Badge status={returnStatus}>{returnStatus}</Badge>}
+                          </div>
+                        </td>
+                        <td>
+                          <Badge status={order.paymentStatus}>{order.paymentStatus}</Badge>
+                        </td>
+                        <td>{total}</td>
+                      </tr>
+                    );
+                  })}
+                </>
+              )}
+            </SortableTable>
           ) : (
             <div class="mobile-records paged-viewport">
               <PagedRows rows={visible()} estimate={110} resetKey={JSON.stringify([query(), statusFilter()])}>

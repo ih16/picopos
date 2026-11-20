@@ -78,19 +78,24 @@ test('stalled writes abort and release the caller after the request deadline', a
   assert.equal(fetch.mock.callCount(), 1);
 });
 
-test('rate-limited reads stop after three attempts', async (t) => {
-  t.mock.timers.enable({ apis: ['setTimeout'] });
-  const fetch = t.mock.method(globalThis, 'fetch', async () => Response.json({}, { status: 429 }));
-  const rejected = assert.rejects(
-    request('token', 'book'),
-    (cause) => cause instanceof SheetsError && cause.status === 429,
-  );
-  await flush();
-  t.mock.timers.tick(1_000);
-  await flush();
-  t.mock.timers.tick(2_000);
-  await rejected;
-  assert.equal(fetch.mock.callCount(), 3);
+test('quota responses defer sync until Retry-After without repeating the request', async (t) => {
+  const now = Date.UTC(2026, 10, 20);
+  t.mock.method(Date, 'now', () => now);
+  for (const [status, reason, header, delay] of [
+    [429, '', '120', 120000],
+    [403, 'userRateLimitExceeded', new Date(now + 90000).toUTCString(), 90000],
+    [403, 'rateLimitExceeded', '', 60000],
+  ] as const) {
+    const fetch = t.mock.method(globalThis, 'fetch', async () =>
+      Response.json({ error: { errors: [{ reason }] } }, { status, headers: { 'Retry-After': header } }),
+    );
+    await assert.rejects(
+      request('token', 'book'),
+      (cause) => cause instanceof SheetsError && cause.status === status && cause.retryAt === now + delay,
+    );
+    assert.equal(fetch.mock.callCount(), 1);
+    fetch.mock.restore();
+  }
 });
 
 test('new workbooks use a recognizable filename and the Sheets creation endpoint', async (t) => {
