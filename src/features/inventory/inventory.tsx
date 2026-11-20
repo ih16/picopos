@@ -460,7 +460,7 @@ export function Inventory(props: InventoryProps) {
                 !mobile() ? (
                   <SortableTable
                     desktopOnly
-                    class="scroll-rows paged-viewport stock-balances-table"
+                    class="scroll-rows stock-balances-table"
                     aria-label="Stock balances"
                     rows={rows()}
                     estimate={55}
@@ -583,7 +583,7 @@ export function Inventory(props: InventoryProps) {
                 !mobile() ? (
                   <SortableTable
                     desktopOnly
-                    class="scroll-rows paged-viewport stock-entries-table"
+                    class="scroll-rows stock-entries-table"
                     aria-label="Stock entries"
                     rows={history()}
                     estimate={55}

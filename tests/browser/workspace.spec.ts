@@ -78,9 +78,15 @@ for (const width of [1440, 390]) {
       await page.goto('/#/orders');
       await page.getByRole('button', { name: 'Try the demo', exact: true }).click();
       const list = page.locator('.orders-list .paged-viewport');
-      const buttons = width === 1440 ? list.locator('tbody button') : list.getByRole('button');
+      const buttons = list.getByRole('button');
       const number = async () =>
         width === 1440 ? buttons.first().innerText() : list.locator('.mobile-record p').first().innerText();
+      if (width === 1440) {
+        const header = await page.locator('.orders-table thead').boundingBox();
+        const body = await list.boundingBox();
+        expect(body!.y).toBeCloseTo(header!.y + header!.height, 0);
+        expect(body!.width).toBeCloseTo(header!.width, 0);
+      }
       const initialNumber = await number();
       expect(await buttons.count()).toBeLessThan(64);
       const dataRequests: string[] = [];
@@ -107,7 +113,9 @@ for (const width of [1440, 390]) {
       });
       await expect.poll(number).toBe(initialNumber);
       if (width === 1440) {
-        const header = list.getByRole('columnheader', { name: 'Order', exact: true });
+        const header = page
+          .locator('.orders-table')
+          .getByRole('columnheader', { name: 'Order', exact: true });
         await header.getByRole('button').click();
         await expect(header).toHaveAttribute('aria-sort', 'ascending');
         const lowest = await number();
@@ -263,7 +271,7 @@ for (const width of [1280, 390]) {
 test('staff can record and update partial payments and refunds', async ({ page }) => {
   await page.goto('/#/orders');
   await page.getByRole('button', { name: 'Try the demo', exact: true }).click();
-  await page.locator('.orders-list .paged-viewport:visible tbody button').first().click();
+  await page.locator('.orders-list .paged-viewport:visible button').first().click();
   const detail = page.locator('.order-detail-page:visible');
   for (const [status, field, result] of [
     ['Partially paid', 'Amount paid', 'Balance due'],

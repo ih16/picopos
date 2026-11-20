@@ -61,7 +61,7 @@ export function PurchaseLots(props: PurchaseLotsProps) {
       <div class="component-scroll">
         {props.data['Purchase Lots'].length ? (
           <SortableTable
-            class="scroll-rows paged-viewport purchase-lots-table"
+            class="scroll-rows purchase-lots-table"
             aria-label="Purchase lots"
             rows={props.data['Purchase Lots']}
             estimate={55}
@@ -168,7 +168,7 @@ export function PurchaseLots(props: PurchaseLotsProps) {
                                   purchased units.
                                 </p>
                                 <SortableTable
-                                  class="paged-viewport lot-entry-table"
+                                  class="lot-entry-table"
                                   aria-label={`Stock entries for ${lot.name}`}
                                   rows={entries}
                                   estimate={52}

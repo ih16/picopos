@@ -404,10 +404,12 @@ textarea {
   min-height: 0;
   overflow: auto;
   overscroll-behavior: none;
-  scrollbar-gutter: stable;
+  scrollbar-gutter: auto;
   border-radius: var(--radius-input);
 }
 .data-table {
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-input);
   border-collapse: separate;
   border-spacing: 0;
   width: 100%;
@@ -427,23 +429,13 @@ textarea {
 }
 .data-table > thead {
   --table-header-blur: blur(36px);
-  position: sticky;
-  top: 0;
+  position: relative;
   z-index: 1;
   background-color: transparent;
   border-radius: var(--radius-input) var(--radius-input) 0 0;
   clip-path: inset(0 round var(--radius-input) var(--radius-input) 0 0);
   -webkit-backdrop-filter: var(--table-header-blur);
   backdrop-filter: var(--table-header-blur);
-}
-.data-table > thead::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border: 1px solid var(--glass-border);
-  border-bottom: 0;
-  border-radius: inherit;
-  pointer-events: none;
 }
 .data-table > thead th {
   position: relative;
@@ -559,7 +551,8 @@ th[aria-sort] .table-sort {
   );
 }
 
-.data-table > :is(thead, tbody:not(.page-spacer), tfoot) > tr:not(.virtual-spacer) {
+.data-table > thead,
+.data-table > :is(tbody, tfoot) > tr:not(.virtual-spacer, .page-spacer) {
   background-image: var(--table-cut-shadow), var(--table-cut-light);
   background-size: 100% 1px;
   background-position:
@@ -2457,9 +2450,8 @@ body:has(.workspace) {
 .detail-payment .payment-status-tiles .row {
   clear: both;
 }
-.order-detail-layout .paged-viewport {
+.order-detail-layout :is(.data-table, .mobile-records.paged-viewport) {
   max-height: 52dvh;
-  overflow: auto;
   overscroll-behavior: auto;
 }
 .detail-items .data-table :is(th, td):nth-child(n + 3) {
@@ -2510,7 +2502,7 @@ body:has(.workspace) {
 .component-scroll:has(.data-table) {
   overscroll-behavior: none;
 }
-.component-scroll .table-wrap:not(.paged-viewport) {
+.component-scroll .table-wrap {
   overflow: visible;
   border-radius: 0;
 }
@@ -2927,31 +2919,15 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
 .product-variants {
   margin-top: var(--space-4);
   padding-top: var(--space-3);
-  border-top: 1px solid var(--line);
 }
 .product-variants[hidden] {
   display: none;
 }
 .product-variants .data-table {
-  table-layout: fixed;
-}
-.product-variants .data-table th:nth-child(1) {
-  width: 30%;
-}
-.product-variants .data-table th:nth-child(2) {
-  width: 28%;
-}
-.product-variants .data-table th:nth-child(3) {
-  width: 16%;
-}
-.product-variants .data-table th:nth-child(4) {
-  width: 16%;
+  --row-columns: 30% 28% 16% 16% 10%;
 }
 .product-variants .data-table :is(th, td):nth-child(4) {
   text-align: center;
-}
-.product-variants .data-table th:last-child {
-  width: 10%;
 }
 .product-variants .data-table td:last-child {
   text-align: right;
@@ -3480,32 +3456,41 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
 .table-wrap:has(> .scroll-rows > tbody:empty) {
   height: auto;
 }
-.scroll-rows {
+.data-table {
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  max-height: 68dvh;
 }
-.scroll-rows > thead,
-.scroll-rows > tbody {
-  scrollbar-gutter: stable;
-}
-.scroll-rows > thead {
+.data-table > thead {
   flex: none;
   overflow: hidden;
+  scrollbar-gutter: stable;
 }
-.scroll-rows > tbody {
-  overflow-y: auto;
-  overscroll-behavior: contain;
+.data-table > tbody.paged-viewport {
+  overflow: auto;
+  scrollbar-gutter: stable;
+  max-height: none;
 }
-.scroll-rows > :is(thead, tbody) > tr:not([hidden]) {
+.data-table > :is(thead, tbody) > tr:not([hidden], .page-spacer) {
   display: grid;
   grid-template-columns: var(--row-columns);
 }
-.scroll-rows > :is(thead, tbody) > tr > :is(th, td) {
+.data-table > :is(thead, tbody) > tr > :is(th, td) {
   min-width: 0;
   align-content: center;
 }
-.scroll-rows > tbody > tr > td[colspan] {
+.data-table > tbody > tr > td[colspan] {
   grid-column: 1 / -1;
+}
+.detail-items .data-table {
+  --row-columns: 2fr 1.2fr 1fr 1fr 1fr;
+}
+.detail-returns .data-table {
+  --row-columns: 2fr 0.8fr 1fr 1.5fr 1.5fr;
+}
+.lot-entry-table {
+  --row-columns: 1.1fr 1.5fr 1fr 1fr 1fr 1fr 1.5fr;
 }
 
 /* Shared thumbnails retain the same footprint in tables, cards and pickers. */
@@ -4430,8 +4415,8 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
     height: 1px;
     overflow: hidden;
   }
-  .purchase-lots-table > tbody > tr:not([hidden]),
-  .lot-entry-table tbody tr {
+  .data-table.purchase-lots-table > tbody > tr:not([hidden], .page-spacer),
+  .data-table.lot-entry-table > tbody > tr:not([hidden], .page-spacer) {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     padding: 8px 0;
@@ -4555,22 +4540,15 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
   }
 }
 
-/* The table itself owns scrolling so headings stay pinned across page groups. */
+/* Paged lists and table bodies own their vertical scroll range. */
 .paged-viewport {
   overflow: auto;
   max-height: 68dvh;
   min-height: 0;
   overflow-anchor: none;
 }
-@media (min-width: 761px) {
-  .scroll-rows.paged-viewport {
-    max-height: none;
-  }
-}
-.scroll-rows.paged-viewport > :is(thead, tbody) {
-  display: block;
-  overflow: visible;
-  scrollbar-gutter: auto;
+.data-table.scroll-rows {
+  max-height: none;
 }
 .paged-viewport > .page-spacer,
 .paged-viewport > .page-spacer :is(tr, td) {
@@ -4600,7 +4578,6 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
 @media (max-width: 760px) {
   .workspace-page
     :is(
-      .scroll-rows,
       .category-list,
       .orders-list > .mobile-records,
       .inventory-page .component-scroll > .mobile-records
@@ -4615,9 +4592,6 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
   }
 }
 
-.data-table.paged-viewport {
-  display: block;
-}
 .ui-select-item > span:first-of-type {
   display: -webkit-box;
   -webkit-line-clamp: 2;

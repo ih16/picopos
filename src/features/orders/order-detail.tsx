@@ -174,7 +174,6 @@ export function OrderDetail(props: OrderDetailProps) {
           <h2>Order items</h2>
           <SortableTable
             desktopOnly
-            paged
             rows={items()}
             estimate={56}
             columns={[
@@ -476,7 +475,6 @@ export function OrderDetail(props: OrderDetailProps) {
                 <>
                   <SortableTable
                     desktopOnly
-                    paged
                     rows={returns()}
                     estimate={56}
                     columns={[

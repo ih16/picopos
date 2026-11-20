@@ -153,7 +153,7 @@ export function OrderList(props: OrdersProps) {
           !mobile() ? (
             <SortableTable
               desktopOnly
-              class="scroll-rows paged-viewport orders-table"
+              class="scroll-rows orders-table"
               aria-labelledby="order-list-title"
               rows={visible()}
 

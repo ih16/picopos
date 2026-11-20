@@ -71,7 +71,6 @@ export function ProductCard(props: ProductCardProps) {
             {props.variants.length > 0 ? (
               <>
                 <SortableTable
-                  paged
                   desktopOnly
                   aria-label={`Variants for ${props.product.name}`}
                   rows={props.variants}

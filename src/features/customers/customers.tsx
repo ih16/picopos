@@ -273,7 +273,7 @@ export function Customers(props: CustomersProps) {
               </div>
               <div class="component-scroll">
                 <SortableTable
-                  class="scroll-rows paged-viewport customers-table"
+                  class="scroll-rows customers-table"
                   aria-label="Customers"
                   rows={shown()}
                   estimate={55}
@@ -368,7 +368,7 @@ export function Customers(props: CustomersProps) {
               </div>
               <div class="component-scroll">
                 <SortableTable
-                  class="scroll-rows paged-viewport customer-orders-table"
+                  class="scroll-rows customer-orders-table"
                   aria-label="Order history"
                   rows={[...entry().orders].sort((a, b) => b.createdAt.localeCompare(a.createdAt))}
                   estimate={55}
