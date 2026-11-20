@@ -334,6 +334,7 @@ export default function Workspace() {
         >
           <header class="topbar">
             <Brand />
+            <span class="mobile-screen-title">{tabLabel(screenTabKey(route()))}</span>
             <nav class="workspace-tabs" aria-label="Open pages">
               <For each={openPages()}>
                 {(item) => (
@@ -358,24 +359,24 @@ export default function Workspace() {
                 )}
               </For>
             </nav>
-            <div class="desktop-theme-toggle">
+            <div class="topbar-actions">
+              <Button
+                class="secondary mobile-tabs-trigger"
+                title="Open tabs"
+                aria-label={`Open tabs, ${openPages().length} open`}
+                aria-expanded={mobileTabsOpen() ? 'true' : 'false'}
+                aria-haspopup="dialog"
+                onClick={() => {
+                  setMobileTabsOpen(true);
+                }}
+              >
+                <Icon name="layers" />
+                <span class="open-tabs-count" aria-hidden="true">
+                  {openPages().length}
+                </span>
+              </Button>
               <ThemeToggle />
             </div>
-            <Button
-              class="secondary mobile-tabs-trigger"
-              title="Open tabs"
-              aria-label={`Open tabs, ${openPages().length} open`}
-              aria-expanded={mobileTabsOpen() ? 'true' : 'false'}
-              aria-haspopup="dialog"
-              onClick={() => {
-                setMobileTabsOpen(true);
-              }}
-            >
-              <Icon name="layers" />
-              <span class="open-tabs-count" aria-hidden="true">
-                {openPages().length}
-              </span>
-            </Button>
           </header>
           <Modal
             dismissLabel="Done"
@@ -412,10 +413,6 @@ export default function Workspace() {
                 )}
               </For>
             </nav>
-            <div class="mobile-sidebar-theme">
-              <span>Appearance</span>
-              <ThemeToggle />
-            </div>
           </Modal>
           <div class="workspace-body">
             <aside class="workspace-sidebar" aria-label="Workspace navigation">
@@ -426,7 +423,7 @@ export default function Workspace() {
                     title={item === 'Connection' ? 'Settings' : item === 'Catalog' ? 'Products' : item}
                     class={[
                       'nav-item',
-                      item === 'Connection' && 'desktop-settings',
+                      (item === 'Connection' || item === 'Inventory') && 'desktop-nav-item',
                       page() === item && 'selected',
                     ]}
                     aria-current={page() === item ? 'page' : undefined}
@@ -454,11 +451,12 @@ export default function Workspace() {
               <div class="mobile-nav-more">
                 <Button
                   unstyled
-                  class={['nav-item', page() === 'Connection' && 'selected']}
+                  class={['nav-item', (page() === 'Connection' || page() === 'Inventory') && 'selected']}
                   aria-label="More options"
                   popovertarget="mobile-nav-options"
                 >
                   <Icon name="more" />
+                  <span>More</span>
                 </Button>
                 <nav
                   id="mobile-nav-options"
@@ -466,6 +464,16 @@ export default function Workspace() {
                   popover="auto"
                   aria-label="More options"
                 >
+                  <Button
+                    unstyled
+                    class="nav-item"
+                    aria-current={page() === 'Inventory' ? 'page' : undefined}
+                    popovertarget="mobile-nav-options"
+                    popovertargetaction="hide"
+                    onClick={() => openPage('Inventory')}
+                  >
+                    <Icon name="inventory" /> Inventory
+                  </Button>
                   <Button
                     unstyled
                     class="nav-item"

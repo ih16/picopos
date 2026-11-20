@@ -20,6 +20,7 @@ export interface DraftForm {
   address: string;
   notes: string;
   paymentStatus: PaymentStatus;
+  partialAmount?: number;
   discount: number | '';
   shippingCharge: number | '';
   shippingOptionId: string;

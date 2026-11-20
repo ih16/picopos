@@ -43,6 +43,12 @@ test('dashboard counts confirmed sales separately from unpaid balances, refunds 
   assert.equal(result.average, 17);
   assert.equal(result.trend.at(-1).sales, 3);
   assert.equal(result.unpaid, 34);
+  Object.assign(data.Orders[1], { paymentStatus: 'Partially paid', partialAmount: 4 });
+  Object.assign(data.Orders[3], { paymentStatus: 'Partially refunded', partialAmount: 6 });
+  const partial = dashboardSummary(data, 7, now);
+  assert.equal(partial.unpaid, 30);
+  assert.equal(partial.value, 45);
+  assert.equal(partial.trend.at(-1).value, 45);
   assert.equal(result.products[0].units, 6);
   assert.equal(result.trend.at(-1).value, 51);
   assert.equal(

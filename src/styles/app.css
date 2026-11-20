@@ -597,6 +597,8 @@ textarea {
   [data-status='Return requested'],
   [data-status='Partially returned'],
   [data-status='Unpaid'],
+  [data-status='Partially paid'],
+  [data-status='Partially refunded'],
   [data-status='Unavailable'],
   [data-tone='warning']
 ) {
@@ -2363,28 +2365,97 @@ body:has(.workspace) {
   margin-top: 0;
   font-size: var(--text-caption);
 }
-.order-detail-page {
-  margin-block-end: var(--space-4);
+/* The detail page scrolls as one record. Only long item and return lists scroll locally. */
+.record-page.order-detail-page {
+  overflow-y: auto;
+  padding-bottom: var(--space-4);
 }
-.order-detail-page > .panel {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
+.order-detail-page:has(.action-bar:not(:empty)) {
+  padding-bottom: 84px;
 }
-.order-detail-page > .detail-summary {
-  flex: 0 1 auto;
-  max-height: 40%;
+.order-detail-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(275px, 30%);
+  grid-template-areas: 'customer payment' 'items payment' 'returns payment';
+  gap: var(--space-4);
+  align-items: start;
 }
-.detail-summary > .component-scroll {
-  padding: var(--space-2);
-  margin: calc(-1 * var(--space-2));
+.order-detail-layout > .panel {
+  min-width: 0;
+}
+.detail-summary {
+  grid-area: customer;
+}
+.detail-items {
+  grid-area: items;
+}
+.detail-payment {
+  grid-area: payment;
+}
+.detail-returns {
+  grid-area: returns;
+}
+.order-customer-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  gap: var(--space-4);
+  margin: 0;
+}
+.order-customer-fields dt {
+  color: var(--ink-muted);
+  font-size: var(--text-small);
+}
+.order-customer-fields dd {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+.order-customer-notes {
+  grid-column: 1 / -1;
+}
+.detail-payment .order-totals {
+  width: 100%;
+  margin: 0;
+  gap: var(--space-3);
+}
+.detail-payment .order-totals > div:last-child {
+  padding-top: var(--space-3);
+  font-size: var(--text-subheading);
+}
+.detail-payment .payment-status-tiles {
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-3);
+}
+.detail-payment .payment-status-tiles legend {
+  float: left;
+  width: 100%;
+  margin-bottom: var(--space-2);
+}
+.detail-payment .payment-status-tiles .row {
+  clear: both;
+}
+.order-detail-layout .paged-viewport {
+  max-height: 52dvh;
+  overflow: auto;
+  overscroll-behavior: auto;
+}
+.detail-items .data-table :is(th, td):nth-child(n + 3) {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 1100px) {
+  .order-detail-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'customer' 'items' 'payment' 'returns';
+  }
 }
 .payment-status-tiles {
   min-width: 0;
   margin: 0;
   padding: 0;
   border: 0;
+}
+.partial-payment-form {
+  margin-top: var(--space-3);
 }
 .payment-status-tiles legend {
   margin-bottom: 5px;
@@ -2397,19 +2468,6 @@ body:has(.workspace) {
 }
 .payment-status-tiles input {
   margin: 0;
-}
-.detail-items tfoot th[scope='row'] {
-  text-align: right;
-}
-.order-detail-page > .detail-items {
-  flex: 1;
-}
-.order-detail-page > .detail-returns {
-  flex: 1;
-}
-.order-detail-page > .panel > h2,
-.order-detail-page > .panel > .row {
-  flex-shrink: 0;
 }
 .component-scroll {
   flex: 1;
@@ -2491,6 +2549,15 @@ body:has(.workspace) {
   gap: 12px;
 }
 
+.settings-charge-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: var(--space-3);
+}
+.settings-charge-row > .button {
+  justify-self: end;
+}
 .settings-shipping-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(90px, 0.5fr) auto;
@@ -2586,7 +2653,7 @@ body:has(.workspace) {
   padding-block: var(--space-2);
 }
 @media (max-width: 760px) {
-  .order-detail-page > .panel,
+  .order-detail-layout > .panel,
   .inventory-page > .panel {
     padding: var(--space-3);
     gap: var(--space-2);
@@ -3167,7 +3234,6 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
 .dashboard-bars {
   min-height: 0;
   overflow-y: auto;
-  overscroll-behavior: contain;
   scrollbar-gutter: stable;
   align-content: start;
   list-style: none;
@@ -3462,8 +3528,13 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
 .mobile-tabs-trigger.button {
   display: none;
 }
-.desktop-theme-toggle {
+.topbar-actions {
+  display: flex;
+  align-items: center;
   justify-self: end;
+}
+.mobile-screen-title {
+  display: none;
 }
 .mobile-tabs-sidebar .ui-modal-header {
   padding-top: max(var(--space-5), env(safe-area-inset-top));
@@ -3489,21 +3560,11 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
 .mobile-workspace-tabs .workspace-tab-close {
   flex: 0 0 44px;
 }
-.mobile-sidebar-theme {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  margin-top: auto;
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--line);
-}
 @media (max-width: 760px) {
   .topbar {
     grid-template-columns: minmax(0, 1fr) auto;
   }
-  .topbar > .workspace-tabs,
-  .desktop-theme-toggle {
+  .topbar > .workspace-tabs {
     display: none;
   }
   .mobile-tabs-trigger.button {
@@ -3921,8 +3982,8 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
     --workspace-gutter: 10px;
   }
   .workspace:has(.workspace-sidebar) {
-    --mobile-nav-target: 52px;
-    --mobile-nav-height: calc(var(--mobile-nav-target) + 1px + env(safe-area-inset-bottom, 0px));
+    --mobile-nav-target: 54px;
+    --mobile-nav-height: calc(var(--mobile-nav-target) + 20px + max(8px, env(safe-area-inset-bottom)));
     padding-bottom: var(--mobile-nav-height);
   }
   .main-content > .demo-notice {
@@ -3935,18 +3996,44 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
     text-align: start;
     padding: 4px 8px;
   }
-  .workspace .topbar {
-    min-height: 56px;
+  .workspace:has(.workspace-sidebar) > .topbar,
+  .workspace-sidebar {
+    background: linear-gradient(112deg, var(--glass-soft), transparent 55%), var(--glass-surface);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
   }
   .workspace:has(.workspace-sidebar) > .topbar {
-    position: sticky;
-    top: 0;
+    position: relative;
     z-index: 8;
-    background: var(--canvas);
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: 4px;
+    min-height: 58px;
+    padding: 5px 8px;
+    margin-top: max(8px, env(safe-area-inset-top));
+    border-radius: 17px;
+  }
+  .mobile-screen-title {
+    display: block;
+    max-width: 30vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: var(--weight-semibold);
+    font-size: var(--text-small);
+  }
+  .topbar-actions > .button {
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
   }
   .open-tabs-count {
+    top: 1px;
     right: 0;
-    top: 0;
+    height: 16px;
+    min-width: 16px;
+    font-size: 9px;
   }
   .workspace-body {
     display: flex;
@@ -3957,27 +4044,24 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
   }
   .workspace-sidebar {
     position: fixed;
-    inset: auto 0 0;
-    padding: 0 max(var(--workspace-gutter), env(safe-area-inset-right)) env(safe-area-inset-bottom)
-      max(var(--workspace-gutter), env(safe-area-inset-left));
+    inset: auto max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom))
+      max(8px, env(safe-area-inset-left));
     z-index: 8;
-    background: var(--canvas);
-    flex-direction: row;
+    padding: 4px;
+    border-radius: 27px;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 0;
     overflow: visible;
-    border-top: 1px solid var(--line);
   }
   .workspace-sidebar .primary-nav {
-    flex: 1;
-    flex-flow: row nowrap;
+    display: grid;
+    grid-row: 1;
+    grid-column: 1 / 5;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 0;
   }
-  .workspace-sidebar .nav-item {
-    flex: 1;
-    min-width: 0;
-    padding: 8px;
-  }
-  .workspace-sidebar .desktop-settings,
+  .workspace-sidebar .desktop-nav-item,
   .workspace-sidebar-footer {
     display: none;
   }
@@ -3985,37 +4069,36 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
     display: block;
   }
   .workspace-sidebar :is(.primary-nav, .mobile-nav-more) > .nav-item {
+    width: 100%;
+    min-width: 0;
     min-height: var(--mobile-nav-target);
+    padding: 4px 0;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    font-size: 10px;
+    line-height: 1.2;
+    border-radius: 21px;
+  }
+  .workspace-sidebar .nav-item span {
+    position: static;
+    width: auto;
+    height: auto;
+    clip-path: none;
   }
   .workspace-sidebar :is(.primary-nav, .mobile-nav-more) > .nav-item.selected {
-    position: relative;
-    isolation: isolate;
-    border-color: transparent;
-    background: transparent;
-    box-shadow: none;
-  }
-  .workspace-sidebar :is(.primary-nav, .mobile-nav-more) > .nav-item.selected::before {
-    content: '';
-    position: absolute;
-    z-index: -1;
-    inset: 4px 0;
-    border: 1px solid var(--glass-border);
-    border-radius: inherit;
+    color: var(--ink);
     background: var(--glass-raised);
+    border-color: var(--glass-border);
     box-shadow: var(--glass-shadow);
-    pointer-events: none;
   }
   @media (prefers-reduced-transparency: reduce) {
-    .workspace-sidebar :is(.primary-nav, .mobile-nav-more) > .nav-item.selected::before {
+    .workspace:has(.workspace-sidebar) > .topbar,
+    .workspace-sidebar {
       background: var(--surface);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
     }
-  }
-  .workspace-sidebar :is(.primary-nav, .mobile-nav-more) > .nav-item svg {
-    width: 21px;
-    height: 21px;
-  }
-  .mobile-nav-more > .nav-item {
-    width: var(--mobile-nav-target);
   }
   .mobile-nav-options:popover-open {
     display: grid;
@@ -4053,20 +4136,32 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
   .new-order-page > .order-header::after,
   .product-list-scroll-frame::before,
   .orders-page > .journey-board,
-  .dashboard-header > div > p {
+  .dashboard-intro {
     display: none;
   }
+  .dashboard-header {
+    justify-content: flex-end;
+    padding: var(--space-4) 4px var(--space-4) 2px;
+    overflow: hidden;
+  }
+  .dashboard-header,
+  .dashboard-scroll {
+    scrollbar-gutter: stable;
+  }
   .dashboard-header .catalog-tabs {
-    flex: 1 1 100%;
+    justify-content: flex-end;
     flex-wrap: wrap;
-    gap: 4px;
+    gap: var(--space-2);
   }
   .dashboard-header .catalog-tabs .button {
-    flex: 1 1 auto;
-    padding-inline: 8px;
+    min-height: 34px;
+    padding: 4px 12px;
+    font-size: var(--text-small);
   }
-  .dashboard-header .catalog-tabs .responsive-action {
-    flex: none;
+  .dashboard-header .catalog-tabs .mobile-icon-only {
+    width: 34px;
+    min-width: 34px;
+    padding: 4px;
   }
   .dashboard-stock,
   .inventory-summary {
@@ -4099,13 +4194,9 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
     overflow-y: auto;
     overscroll-behavior: contain;
   }
-  .order-detail-page > .panel,
   .customer-details-page > .panel {
     flex: none;
     max-height: none;
-  }
-  .order-detail-page .component-scroll {
-    flex: none;
   }
   .order-header,
   .order-header-details {
@@ -4189,7 +4280,7 @@ body:has(.ui-modal[open]) .app-shell > .reconnect-toast {
     box-shadow: var(--shadow-panel);
   }
   .record-shortcut.action-bar,
-  .order-detail-page .order-header > .action-bar {
+  .order-detail-page .action-bar {
     position: fixed;
     right: max(12px, env(safe-area-inset-right));
     bottom: calc(var(--mobile-nav-height) + 12px);

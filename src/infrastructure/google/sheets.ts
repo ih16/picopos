@@ -5,6 +5,7 @@ import {
   type PendingChange,
   type PendingEdit,
 } from '../../domain/outbox';
+import { savedCharges } from '../../domain/charges';
 import type { Workbook } from '../../domain/workbook';
 import {
   applyChanges,
@@ -78,6 +79,7 @@ const NUMBER_FIELDS = new Set([
   'unavailableDelta',
   'discount',
   'shippingCharge',
+  'partialAmount',
 ]);
 const CHOICES: Partial<Record<Tab, Record<string, readonly string[]>>> = {
   Orders: { status: ORDER_STATUSES, paymentStatus: PAYMENT_STATUSES },
@@ -232,6 +234,8 @@ async function upgradeWorkbook(token: string, document: DocumentState): Promise<
   for (const [tab, field] of [
     ['Orders', 'customerId'],
     ['Orders', 'shippingOption'],
+    ['Orders', 'charges'],
+    ['Orders', 'partialAmount'],
     ['Categories', 'parentId'],
     ['Stock Entries', 'purchaseLotId'],
   ] as const) {
@@ -274,11 +278,19 @@ function parseCell(tab: Tab, field: string, value: Cell | undefined, location: s
     throw new SheetsError(`${location} Active must be TRUE or FALSE.`);
   }
   if (NUMBER_FIELDS.has(field)) {
-    if (!nonempty(value) && (field === 'discount' || field === 'shippingCharge')) return 0;
+    if (!nonempty(value) && (field === 'discount' || field === 'shippingCharge' || field === 'partialAmount'))
+      return 0;
     if (typeof value === 'number' && Number.isFinite(value)) return value;
     throw new SheetsError(`${location} ${FIELD_LABELS[field] ?? field} must be a number.`);
   }
   const string = String(value ?? '').trim();
+  if (tab === 'Orders' && field === 'charges') {
+    try {
+      savedCharges(string);
+    } catch (cause) {
+      throw new SheetsError(location + ' ' + (cause as Error).message);
+    }
+  }
   const choices = CHOICES[tab]?.[field];
   if (choices && !choices.includes(string) && !(field === 'condition' && string === '')) {
     throw new SheetsError(
@@ -526,7 +538,8 @@ export async function initializeWorkbook(
   // for occupied tabs and unsupported schema versions before making any writes.
   const needsSetup = isEmpty(settingsRows.slice(1));
   const preferences = initialSettings?.filter(
-    ({ tab, row }) => tab === 'Settings' && ['currency', 'numberFormat', 'shippingOptions'].includes(row.id),
+    ({ tab, row }) =>
+      tab === 'Settings' && ['currency', 'numberFormat', 'shippingOptions', 'chargeRates'].includes(row.id),
   );
   if (needsSetup && preferences) validateChanges(emptyWorkbook(), preferences);
   if (needsSetup && document.sheets.has('Settings')) {

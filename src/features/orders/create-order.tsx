@@ -2,6 +2,7 @@ import { createMemo, createSignal, createStore, For, Show, useContext } from 'so
 
 import { ScreenNavigation } from '../../app/navigation/screen-navigation';
 import { orderPath } from '../../app/navigation/screen-route';
+import { chargeRates, calculateCharges, chargeLabel } from '../../domain/charges';
 import { lineSubtotal, orderTotal } from '../../domain/order-totals';
 import { workbookCurrency, workbookNumberFormat } from '../../domain/settings';
 import type { Order, PaymentStatus } from '../../domain/workbook';
@@ -10,6 +11,7 @@ import {
   getShippingOptions,
   makeId,
   PAYMENT_STATUSES,
+  isPartialPayment,
   type RowChange,
 } from '../../domain/workbook';
 import { money } from '../../shared/lib/format';
@@ -58,11 +60,25 @@ export function CreateOrder(props: OrdersProps) {
     shipping().shippingOptions.find((option) => option.id === draft.shippingOptionId),
   );
   const draftShippingCharge = createMemo(() => shippingOption()?.rate ?? Number(draft.shippingCharge));
+  const chargeSettings = createMemo(() => {
+    try {
+      return {
+        rates: chargeRates(props.data.Settings.find((row) => row.id === 'chargeRates')?.value ?? '[]'),
+        error: '',
+      };
+    } catch (cause) {
+      return { rates: [], error: (cause as Error).message };
+    }
+  });
+  const breakdown = createMemo(() =>
+    calculateCharges(subtotal() - Number(draft.discount), chargeSettings().rates, currency()),
+  );
   const draftTotal = createMemo(() =>
-    orderTotal(subtotal(), {
-      discount: Number(draft.discount),
-      shippingCharge: draftShippingCharge(),
-    }),
+    orderTotal(
+      subtotal(),
+      { discount: Number(draft.discount), shippingCharge: draftShippingCharge() },
+      breakdown(),
+    ),
   );
 
   return (
@@ -80,6 +96,11 @@ export function CreateOrder(props: OrdersProps) {
           if (!draft.customer.trim()) {
             setCustomerSectionOpen(true);
             setError('Enter the customer name.');
+            return;
+          }
+          if (chargeSettings().error) {
+            setPaymentSectionOpen(true);
+            setError('Fix the percentage charges in Settings before creating an order.');
             return;
           }
           const discount = Number(draft.discount);
@@ -115,6 +136,7 @@ export function CreateOrder(props: OrdersProps) {
             address: draft.address.trim(),
             status: 'Draft',
             paymentStatus: draft.paymentStatus,
+            partialAmount: isPartialPayment(draft.paymentStatus) ? draft.partialAmount : 0,
             notes: draft.notes.trim(),
             discount,
             shippingCharge,
@@ -158,6 +180,8 @@ export function CreateOrder(props: OrdersProps) {
             setError('The discount cannot exceed the items subtotal.');
             return;
           }
+          const charges = calculateCharges(subtotal - discount, chargeSettings().rates, currency());
+          if (charges.length) order.charges = JSON.stringify(charges);
           if (await props.onCommit(changes)) {
             await navigate(orderPath(orderId), true);
           }
@@ -475,11 +499,31 @@ export function CreateOrder(props: OrdersProps) {
                   value={draft.paymentStatus}
                   onChange={(value) => {
                     setDraft((draft) => {
+                      draft.partialAmount = undefined;
                       draft.paymentStatus = value as PaymentStatus;
                     });
                   }}
                   options={PAYMENT_STATUSES.map((value) => ({ value, label: value }))}
                 />
+                {isPartialPayment(draft.paymentStatus) && (
+                  <label class="field">
+                    {draft.paymentStatus === 'Partially paid' ? 'Amount paid' : 'Amount refunded'} (
+                    {currency()})
+                    <Input
+                      type="number"
+                      step="any"
+                      min="0"
+                      required
+                      value={draft.partialAmount ?? ''}
+                      onInput={(event) => {
+                        const value = event.currentTarget.valueAsNumber;
+                        setDraft((draft) => {
+                          draft.partialAmount = Number.isFinite(value) ? value : undefined;
+                        });
+                      }}
+                    />
+                  </label>
+                )}
                 <label class="field">
                   Discount ({currency()})
                   <Input
@@ -533,12 +577,29 @@ export function CreateOrder(props: OrdersProps) {
                     />
                   </label>
                 )}
+                {chargeSettings().error && (
+                  <p class="notice error" role="alert">
+                    {chargeSettings().error} Update percentage charges in Settings.
+                  </p>
+                )}
                 {shipping().shippingError && (
                   <p class="notice error" role="alert">
                     {shipping().shippingError} Update shipping options in Settings.
                   </p>
                 )}
               </div>
+              {breakdown().length > 0 && (
+                <dl class="order-totals">
+                  <For each={breakdown()}>
+                    {(charge) => (
+                      <div>
+                        <dt>{chargeLabel(charge)}</dt>
+                        <dd>{money(charge.amount, currency(), numberFormat())}</dd>
+                      </div>
+                    )}
+                  </For>
+                </dl>
+              )}
             </div>
           </details>
         </div>

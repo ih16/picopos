@@ -33,11 +33,17 @@ export function findRowChange(data: WorkbookData, tab: TableName, id: string): R
 export function pendingEditFields({ before, after }: PendingEdit): string[] {
   const values = after.row as Record<string, unknown>;
   const original = before?.row as Record<string, unknown> | undefined;
+  const changedPayment =
+    after.tab === 'Orders' &&
+    original &&
+    (values.paymentStatus !== original.paymentStatus ||
+      (values.partialAmount ?? 0) !== (original.partialAmount ?? 0));
   return HEADERS[after.tab].filter(
     (field) =>
       field !== 'id' &&
       values[field] !== undefined &&
-      values[field] !== (field === 'image' ? (original?.[field] ?? '') : original?.[field]),
+      ((changedPayment && (field === 'paymentStatus' || field === 'partialAmount')) ||
+        values[field] !== (field === 'image' ? (original?.[field] ?? '') : original?.[field])),
   );
 }
 

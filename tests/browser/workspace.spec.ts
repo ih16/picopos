@@ -166,3 +166,106 @@ test('mobile catalog scrolls records and editor fields inside a stationary works
     ),
   ).toBe(0);
 });
+
+test('new orders apply configured charges and keep their breakdown after rates are removed', async ({
+  page,
+}) => {
+  await page.goto('/#/settings');
+  await page.getByRole('button', { name: 'Try the demo', exact: true }).click();
+  const screen = page.locator('.workspace-page:visible');
+  for (const [name, percent] of [
+    ['VAT', '15'],
+    ['Service charge', '5'],
+  ]) {
+    await screen.getByRole('button', { name: 'Add charge' }).click();
+    await screen.getByLabel('Charge name', { exact: true }).last().fill(name);
+    await screen.getByLabel('Percentage (%)', { exact: true }).last().fill(percent);
+    if (name === 'VAT') {
+      await screen.getByRole('combobox', { name: 'Price treatment' }).last().click();
+      await page.getByRole('option', { name: /Inclusive/ }).click();
+    }
+  }
+  await screen.getByRole('button', { name: 'Save settings' }).click();
+  await page.evaluate(() => {
+    location.hash = '/orders/new';
+  });
+  for (const [label, search] of [
+    ['Saved customer', 'Maya'],
+    ['Product / variant 1', 'tote'],
+    ['Shipping option', ''],
+  ]) {
+    const field = screen.getByRole('combobox', { name: label, exact: true });
+    await field.click();
+    if (search) await field.fill(search);
+    await field.press('ArrowDown');
+    await field.press('Enter');
+  }
+  const labels = ['VAT (15% · included)', 'Service charge (5% · added)'];
+  for (const label of labels) await expect(screen.getByText(label, { exact: true })).toBeVisible();
+  await screen.getByRole('button', { name: 'Create draft' }).click();
+  await expect(screen.getByRole('heading', { name: /^P-/ })).toBeVisible();
+  const orderHash = new URL(page.url()).hash;
+  await page.evaluate(() => {
+    location.hash = '/settings';
+  });
+  for (let i = 0; i < 2; i++) await screen.getByRole('button', { name: 'Remove charge 1' }).click();
+  await screen.getByRole('button', { name: 'Save settings' }).click();
+  await page.evaluate((hash) => {
+    location.hash = hash;
+  }, orderHash);
+  for (const label of labels)
+    await expect(screen.getByText(label, { exact: true }).filter({ visible: true })).toBeVisible();
+});
+
+for (const width of [1280, 390]) {
+  test(
+    'order details position the payment summary and keep actions floating at width ' + width,
+    async ({ page }) => {
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto('/#/orders');
+      await page.getByRole('button', { name: 'Try the demo', exact: true }).click();
+      await page
+        .locator('.orders-list .paged-viewport:visible')
+        .locator('tr, article')
+        .filter({ has: page.getByText('Shipped', { exact: true }) })
+        .first()
+        .getByRole('button')
+        .click();
+      const detail = page.locator('.order-detail-page:visible');
+      const items = detail.locator('.detail-items');
+      const summary = detail.locator('.detail-payment');
+      await expect(summary.getByText('Order total', { exact: true })).toBeVisible();
+      const a = (await items.boundingBox())!;
+      const b = (await summary.boundingBox())!;
+      if (width === 390) expect(b.y).toBeGreaterThanOrEqual(a.y + a.height - 1);
+      else expect(b.x).toBeGreaterThanOrEqual(a.x + a.width - 1);
+      const actions = detail.getByRole('group', { name: 'Order actions' });
+      await expect(actions).toHaveCSS('position', 'fixed');
+      const before = await actions.boundingBox();
+      await detail.evaluate((el) => {
+        el.scrollTop = el.scrollHeight;
+      });
+      expect(await actions.boundingBox()).toEqual(before);
+      expect(await detail.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+    },
+  );
+}
+
+test('staff can record and update partial payments and refunds', async ({ page }) => {
+  await page.goto('/#/orders');
+  await page.getByRole('button', { name: 'Try the demo', exact: true }).click();
+  await page.locator('.orders-list .paged-viewport:visible').getByRole('button').first().click();
+  const detail = page.locator('.order-detail-page:visible');
+  for (const [status, field, result] of [
+    ['Partially paid', 'Amount paid', 'Balance due'],
+    ['Partially refunded', 'Amount refunded', 'Payment retained'],
+  ]) {
+    await detail.getByRole('radio', { name: status, exact: true }).check();
+    await detail.getByRole('spinbutton', { name: new RegExp(field) }).fill('1.25');
+    await detail.getByRole('button', { name: 'Save payment' }).click();
+    await expect(detail.getByText(new RegExp(result))).toBeVisible();
+    await expect(detail.getByRole('spinbutton', { name: new RegExp(field) })).toHaveValue('1.25');
+  }
+  await detail.getByRole('radio', { name: 'Refunded', exact: true }).check();
+  await expect(detail.getByRole('spinbutton', { name: /Amount refunded/ })).toHaveCount(0);
+});

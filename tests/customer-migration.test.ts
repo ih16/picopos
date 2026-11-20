@@ -36,6 +36,8 @@ function runtime(
       fields
         .filter(
           (field) =>
+            field !== 'partialAmount' &&
+            field !== 'charges' &&
             field !== 'shippingOption' &&
             field !== 'customerId' &&
             field !== 'parentId' &&
@@ -109,23 +111,25 @@ function runtime(
           result = {
             valueRanges: url.searchParams.getAll('ranges').map((range) => ({
               values:
-                range === "'Orders'!M:M"
-                  ? shippingOccupied
-                    ? [['=custom_formula()']]
-                    : []
-                  : range === "'Stock Entries'!H:H"
-                    ? lotOccupied
+                range === "'Orders'!N:N" || range === "'Orders'!O:O"
+                  ? []
+                  : range === "'Orders'!M:M"
+                    ? shippingOccupied
                       ? [['=custom_formula()']]
                       : []
-                    : range === "'Orders'!L:L"
-                      ? occupied
+                    : range === "'Stock Entries'!H:H"
+                      ? lotOccupied
                         ? [['=custom_formula()']]
                         : []
-                      : range === "'Categories'!C:C"
-                        ? categoryOccupied
+                      : range === "'Orders'!L:L"
+                        ? occupied
                           ? [['=custom_formula()']]
                           : []
-                        : (rows.get(range.split("'")[1]) ?? []),
+                        : range === "'Categories'!C:C"
+                          ? categoryOccupied
+                            ? [['=custom_formula()']]
+                            : []
+                          : (rows.get(range.split("'")[1]) ?? []),
             })),
           };
         } else if (url.pathname.endsWith(':batchUpdate')) {
@@ -168,6 +172,8 @@ test('sync upgrades an existing workbook without reconnect and migration is idem
   assert.equal(rows.get('Stock Entries')![0][7], 'Purchase Lot ID');
   assert.equal(rows.get('Orders')![0][11], 'Customer ID');
   assert.equal(rows.get('Orders')![0][12], 'Shipping Option');
+  assert.equal(rows.get('Orders')![0][13], 'Charges');
+  assert.equal(rows.get('Orders')![0][14], 'Partial Amount');
   assert.equal(rows.get('Categories')![0][2], 'Parent Category ID');
   assert.equal(writes.filter((request) => request.addSheet).length, 2);
   const count = writes.length;

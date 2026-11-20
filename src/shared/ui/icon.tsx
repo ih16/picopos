@@ -16,7 +16,7 @@ const paths = {
   'product-add': ['m3 7 8-4 8 4-8 4-8-4Zm0 0v9l8 4v-9m8-4v5', 'M18 15v7m-3.5-3.5h7'],
   return: ['m9 4-6 6 6 6M3 10h11a6 6 0 0 1 0 12'],
   'order-add': ['M14 21H5V3h12l3 3v6M8 8h7m-7 4h5', 'M18 15v7m-3.5-3.5h7'],
-  'category-add': ['M13 20 3 10V3h7l10 10-2 2M7 7h.01', 'M18 16v6m-3-3h6'],
+  'category-add': ['M3 3h8l7 7-8 8-7-7V3ZM7 7h.01', 'M18 14v8m-4-4h8'],
   'customer-add': [
     'M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM2 21v-2a6 6 0 0 1 6-6h2a6 6 0 0 1 4 1.5',
     'M18 14v7m-3.5-3.5h7',

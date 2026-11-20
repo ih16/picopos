@@ -1,3 +1,5 @@
+import { addedCharges, savedCharges } from './charges.ts';
+
 export function lineSubtotal(quantity: number, unitPrice: number): number {
   return quantity * unitPrice;
 }
@@ -8,7 +10,8 @@ export function orderSubtotal(items: readonly { quantity: number; unitPrice: num
 
 export function orderTotal(
   subtotal: number,
-  { discount, shippingCharge }: { discount: number; shippingCharge: number },
+  order: { discount: number; shippingCharge: number; charges?: string },
+  charges = savedCharges(order.charges),
 ): number {
-  return subtotal - discount + shippingCharge;
+  return subtotal - order.discount + order.shippingCharge + addedCharges(charges);
 }

@@ -1,7 +1,14 @@
-import { orderSubtotal } from './order-totals.ts';
+import { chargeRates, savedCharges } from './charges.ts';
+import { orderSubtotal, orderTotal } from './order-totals.ts';
 
 export const ORDER_STATUSES = ['Draft', 'In progress', 'Shipped', 'Completed', 'Cancelled'] as const;
-export const PAYMENT_STATUSES = ['Unpaid', 'Paid', 'Refunded'] as const;
+export const PAYMENT_STATUSES = [
+  'Unpaid',
+  'Partially paid',
+  'Paid',
+  'Partially refunded',
+  'Refunded',
+] as const;
 export const RETURN_STATUSES = ['Requested', 'Received'] as const;
 export const RETURN_CONDITIONS = ['Sellable', 'Damaged'] as const;
 export const STOCK_TYPES = ['Opening stock', 'Receipt', 'Adjustment', 'Damaged', 'Restocked'] as const;
@@ -9,6 +16,10 @@ export const MAX_PRODUCT_IMAGE_LENGTH = 45_000;
 
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
+export function isPartialPayment(status: PaymentStatus) {
+  return status === 'Partially paid' || status === 'Partially refunded';
+}
+
 export type ReturnCondition = (typeof RETURN_CONDITIONS)[number];
 type ReturnStatus = (typeof RETURN_STATUSES)[number];
 export type StockType = (typeof STOCK_TYPES)[number];
@@ -42,6 +53,7 @@ export type Variant = {
 };
 export type Order = {
   shippingOption?: string;
+  charges?: string;
   customerId?: string;
   id: string;
   number: string;
@@ -51,6 +63,7 @@ export type Order = {
   address: string;
   status: OrderStatus;
   paymentStatus: PaymentStatus;
+  partialAmount?: number;
   notes: string;
   discount: number;
   shippingCharge: number;
@@ -123,6 +136,8 @@ export const HEADERS = {
     'shippingCharge',
     'customerId',
     'shippingOption',
+    'charges',
+    'partialAmount',
   ],
   'Order Items': ['id', 'orderId', 'variantId', 'productName', 'variantName', 'sku', 'quantity', 'unitPrice'],
   Returns: ['id', 'orderItemId', 'quantity', 'status', 'condition', 'receivedAt', 'notes'],
@@ -238,11 +253,13 @@ export function validateChanges(data: WorkbookData, changes: RowChange[]) {
     if (change.tab === 'Settings') {
       if (change.row.id === 'currency' && !/^[A-Z]{3}$/.test(change.row.value))
         throw new Error('Enter a three-letter currency code, such as USD or BDT.');
+      if (change.row.id === 'chargeRates') chargeRates(change.row.value);
       if (change.row.id === 'shippingOptions') parseShippingOptions(change.row.value);
     }
     if (change.tab === 'Customers' && !change.row.name.trim()) throw new Error('Enter a customer name.');
     if (change.tab === 'Orders') {
       const order = change.row;
+      savedCharges(order.charges);
       if (!PAYMENT_STATUSES.includes(order.paymentStatus)) throw new Error('Choose a valid payment status.');
       if (order.customerId && !next.Customers.some((customer) => customer.id === order.customerId))
         throw new Error('Choose an existing customer.');
@@ -261,6 +278,16 @@ export function validateChanges(data: WorkbookData, changes: RowChange[]) {
         throw new Error(
           'Use a nonnegative shipping charge and a discount between zero and the order subtotal.',
         );
+      }
+      if (isPartialPayment(order.paymentStatus)) {
+        const amount = order.partialAmount;
+        if (
+          amount === undefined ||
+          !Number.isFinite(amount) ||
+          amount <= 0 ||
+          amount >= orderTotal(subtotal, order)
+        )
+          throw new Error('The partial amount must be greater than zero and less than the order total.');
       }
       if (!previous && order.status !== 'Draft') throw new Error('New orders must start as drafts.');
       if (previous && previous.status !== order.status) {

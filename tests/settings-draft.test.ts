@@ -31,6 +31,8 @@ test('a synced preference refreshes untouched fields without resetting edits or 
     numberFormat: 'en-IN',
     shippingOptions: [{ id: 'local', name: 'Local delivery', rate: '' }],
     shippingError: '',
+    chargeRates: [],
+    chargeError: '',
   });
 
   draft = editSetting(refreshed, draft, 'shippingOptions', [

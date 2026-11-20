@@ -92,7 +92,7 @@ export function Dashboard(props: DashboardProps) {
   return (
     <section class="dashboard-page">
       <header class="dashboard-header">
-        <div>
+        <div class="dashboard-intro">
           <h1>Sales report</h1>
           <p class="muted">Sales performance, top products, and outstanding payments.</p>
         </div>

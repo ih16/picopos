@@ -167,3 +167,13 @@ test('payment and return edits reject values the workbook cannot record', () => 
     );
   }
 });
+
+test('partial payments and refunds require an amount strictly inside the order total', () => {
+  const data = fixture('Shipped');
+  for (const paymentStatus of ['Partially paid', 'Partially refunded'] as const) {
+    const save = (partialAmount?: number) =>
+      validateChanges(data, [{ tab: 'Orders', row: { ...data.Orders[0], paymentStatus, partialAmount } }]);
+    for (const amount of [undefined, NaN, 0, -1, 60, 70]) assert.throws(() => save(amount), /partial amount/);
+    assert.doesNotThrow(() => save(15));
+  }
+});

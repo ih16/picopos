@@ -29,6 +29,8 @@ export function dashboardSummary(data: WorkbookData, days: number, now = new Dat
       (subtotals.get(item.orderId) ?? 0) + lineSubtotal(item.quantity, item.unitPrice),
     );
   const totalForOrder = (order: (typeof orders)[number]) => orderTotal(subtotals.get(order.id) ?? 0, order);
+  const saleValue = (order: (typeof orders)[number]) =>
+    totalForOrder(order) - (order.paymentStatus === 'Partially refunded' ? (order.partialAmount ?? 0) : 0);
   const sales = orders.filter(
     (order) =>
       (order.status === 'In progress' || isShipped(order.status)) && order.paymentStatus !== 'Refunded',
@@ -39,7 +41,7 @@ export function dashboardSummary(data: WorkbookData, days: number, now = new Dat
     const day = byDay.get(dayKey(new Date(order.createdAt)))!;
     day.orders++;
     if (saleIds.has(order.id)) {
-      const total = totalForOrder(order);
+      const total = saleValue(order);
       day.value += total;
       day.sales++;
       value += total;
@@ -80,7 +82,7 @@ export function dashboardSummary(data: WorkbookData, days: number, now = new Dat
       const share = subtotal
         ? lineSubtotal(item.quantity, item.unitPrice) / subtotal
         : item.quantity / orderUnits.get(order.id)!;
-      day.costedValue += totalForOrder(order) * share;
+      day.costedValue += saleValue(order) * share;
       day.costedUnits += item.quantity;
       day.cost =
         (day.cost ?? 0) +
@@ -125,9 +127,16 @@ export function dashboardSummary(data: WorkbookData, days: number, now = new Dat
     unpaid: orders
       .filter(
         (order) =>
-          order.paymentStatus === 'Unpaid' && (order.status === 'In progress' || isShipped(order.status)),
+          (order.paymentStatus === 'Unpaid' || order.paymentStatus === 'Partially paid') &&
+          (order.status === 'In progress' || isShipped(order.status)),
       )
-      .reduce((sum, order) => sum + totalForOrder(order), 0),
+      .reduce(
+        (sum, order) =>
+          sum +
+          (totalForOrder(order) -
+            (order.paymentStatus === 'Partially paid' ? (order.partialAmount ?? 0) : 0)),
+        0,
+      ),
     statuses: ORDER_STATUSES.map((status) => ({
       status,
       count: orders.filter((order) => order.status === status).length,

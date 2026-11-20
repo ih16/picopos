@@ -1,8 +1,11 @@
+import { chargeRates, type ChargeRate } from '../../domain/charges.ts';
 import { workbookNumberFormat } from '../../domain/settings.ts';
 import { getShippingOptions, type RowChange, type WorkbookData } from '../../domain/workbook.ts';
 
 type ShippingRate = { id: string; name: string; rate: string };
+export type EditableCharge = Omit<ChargeRate, 'percent'> & { percent: string };
 type SettingsValues = {
+  chargeRates: EditableCharge[];
   currency: string;
   numberFormat: string;
   shippingOptions: ShippingRate[];
@@ -37,7 +40,21 @@ export function settingsEditorValues(data: WorkbookData, draft: SettingsDraft) {
       shippingError = (cause as Error).message;
     }
   }
+  let charges = draft.chargeRates?.value ?? [];
+  let chargeError = '';
+  if (!draft.chargeRates) {
+    try {
+      charges = chargeRates(savedValue(data, 'chargeRates') ?? '[]').map((rate) => ({
+        ...rate,
+        percent: String(rate.percent),
+      }));
+    } catch (cause) {
+      chargeError = (cause as Error).message;
+    }
+  }
   return {
+    chargeRates: charges,
+    chargeError,
     currency: draft.currency?.value ?? (savedValue(data, 'currency') || 'USD'),
     numberFormat: draft.numberFormat?.value ?? workbookNumberFormat(data),
     shippingOptions,
@@ -69,6 +86,17 @@ export function prepareSettingsSave(data: WorkbookData, draft: SettingsDraft, se
       rate: Number(option.rate),
     }));
     add('shippingOptions', JSON.stringify(shipping));
+  }
+  if (draft.chargeRates) {
+    const serialized = JSON.stringify(
+      values.chargeRates.map((rate) => ({
+        ...rate,
+        name: rate.name.trim(),
+        percent: rate.percent.trim() ? Number(rate.percent) : null,
+      })),
+    );
+    chargeRates(serialized);
+    add('chargeRates', serialized);
   }
   return { changes, base };
 }

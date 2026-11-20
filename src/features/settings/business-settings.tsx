@@ -6,7 +6,13 @@ import { NUMBER_FORMAT_OPTIONS } from '../../domain/settings';
 import { SYNC_INTERVALS } from '../../domain/sync-timing';
 import { makeId, type RowChange, type WorkbookData } from '../../domain/workbook';
 import { ActionBar, Button, EditorForm, Input, Panel, SelectField } from '../../shared/ui/controls';
-import { editSetting, prepareSettingsSave, settingsEditorValues, type SettingsDraft } from './settings-draft';
+import {
+  editSetting,
+  prepareSettingsSave,
+  settingsEditorValues,
+  type SettingsDraft,
+  type EditableCharge,
+} from './settings-draft';
 
 type BusinessSettingsProps = {
   data: WorkbookData;
@@ -32,6 +38,18 @@ export function BusinessSettings(props: BusinessSettingsProps) {
       ? CURRENCY_OPTIONS
       : [...CURRENCY_OPTIONS, { value: values().currency, label: values().currency }],
   );
+  const updateCharges = (change: (rates: EditableCharge[]) => EditableCharge[]) => {
+    setDraft((previous) =>
+      editSetting(
+        props.data,
+        previous,
+        'chargeRates',
+        change(settingsEditorValues(props.data, previous).chargeRates),
+      ),
+    );
+  };
+  const setCharge = (id: string, fields: Partial<EditableCharge>) =>
+    updateCharges((rates) => rates.map((rate) => (rate.id === id ? { ...rate, ...fields } : rate)));
   return (
     <Panel class="stack settings-business" role="region" aria-label="Currency and shipping">
       <EditorForm
@@ -211,6 +229,84 @@ export function BusinessSettings(props: BusinessSettingsProps) {
               }}
               icon="plus"
               label="Add shipping option"
+            />
+          </div>
+        </section>
+        <section class="settings-form-column stack" aria-labelledby={id + '-charges'}>
+          <div class="settings-section-heading">
+            <h2 id={id + '-charges'}>Percentage charges</h2>
+            <p class="muted">
+              Apply charges automatically to new orders after discounts and before shipping. Each percentage
+              uses the product price before charges.
+            </p>
+          </div>
+          {values().chargeError && (
+            <p class="notice error" role="alert">
+              {values().chargeError} Add a charge to replace the invalid list.
+            </p>
+          )}
+          <For each={values().chargeRates} keyed={(row) => row.id}>
+            {(rate, index) => (
+              <div class="settings-charge-row">
+                <label class="field">
+                  Charge name
+                  <Input
+                    required
+                    disabled={saving()}
+                    placeholder="VAT or service charge"
+                    value={rate().name}
+                    onInput={(event) => setCharge(rate().id, { name: event.currentTarget.value })}
+                  />
+                </label>
+                <label class="field">
+                  Percentage (%)
+                  <Input
+                    type="number"
+                    required
+                    min="0"
+                    step="any"
+                    inputmode="decimal"
+                    disabled={saving()}
+                    value={rate().percent}
+                    onInput={(event) => setCharge(rate().id, { percent: event.currentTarget.value })}
+                  />
+                </label>
+                <SelectField
+                  label="Price treatment"
+                  value={rate().mode}
+                  disabled={saving()}
+                  options={[
+                    { value: 'inclusive', label: 'Inclusive · already in price' },
+                    { value: 'exclusive', label: 'Exclusive · add to price' },
+                  ]}
+                  onChange={(value) =>
+                    setCharge(rate().id, { mode: value === 'inclusive' ? 'inclusive' : 'exclusive' })
+                  }
+                />
+                <Button
+                  class="secondary"
+                  aria-label={'Remove charge ' + (index() + 1)}
+                  disabled={saving()}
+                  onClick={() => updateCharges((rates) => rates.filter((row) => row.id !== rate().id))}
+                  icon="close"
+                  mobileIconOnly
+                  label="Remove"
+                />
+              </div>
+            )}
+          </For>
+          <div class="settings-add-shipping">
+            <Button
+              class="secondary"
+              disabled={saving()}
+              onClick={() =>
+                updateCharges((rates) => [
+                  ...rates,
+                  { id: makeId(), name: '', percent: '', mode: 'exclusive' },
+                ])
+              }
+              icon="plus"
+              label="Add charge"
             />
           </div>
         </section>

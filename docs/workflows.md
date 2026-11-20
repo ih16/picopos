@@ -17,7 +17,7 @@ The customer directory combines saved customer records with historical order con
 3. Confirm the draft to move it to **In progress** and reserve stock. Confirmation and shipping check available stock locally and again during sync.
 4. Mark the whole order **Shipped**, then **Completed** when appropriate. Draft and In progress orders can instead be cancelled.
 
-The supported transitions are `Draft → In progress → Shipped → Completed`, with cancellation from Draft or In progress only. Completed and Cancelled are terminal states in the app. Payment status (`Unpaid`, `Paid`, or `Refunded`) is separate from fulfillment status and does not itself move stock.
+The supported transitions are `Draft → In progress → Shipped → Completed`, with cancellation from Draft or In progress only. Completed and Cancelled are terminal states in the app. Payment status (`Unpaid`, `Partially paid`, `Paid`, `Partially refunded`, or `Refunded`) is separate from fulfillment status and does not itself move stock. For a partial payment, enter the total collected so far. For a partial refund of a paid order, enter the total refunded so far. Updating either amount replaces the previous figure. Outstanding payments count the remaining balance, and sales value deducts recorded refunds.
 
 Order lines snapshot product name, variant name, SKU, and unit price. Keep shipped lines intact. Receive partial or full returns against shipped/completed order items, specifying the receipt date and Sellable or Damaged condition. Requested returns do not move stock. Received sellable returns increase available stock; damaged returns increase on-hand and unavailable stock together. The total requested and received return quantity cannot exceed the shipped item quantity. A received return cannot be edited through the domain save path.
 
@@ -29,9 +29,11 @@ A purchase lot records its name, total purchase amount, and total purchased unit
 
 Review negative balances after sync, especially when several staff members confirm orders concurrently. Browser locks coordinate tabs in one browser profile; they cannot make stock reservations transactional across devices.
 
-## Currency and shipping
+## Currency, shipping, and percentage charges
 
 In **Settings**, choose the workbook currency and define named shipping rates, including a zero rate for pickup. Changing currency changes how amounts are displayed; it does not convert prices or historical amounts. Orders store their shipping option and charge, so changing a configured rate does not recalculate existing orders.
+
+Under **Percentage charges**, enter a name and percentage for each charge. Choose **Inclusive** to show the portion already in the selling price or **Exclusive** to add it at checkout. New orders apply all configured charges after discounts and before shipping. For example, a $115 product subtotal with 15% inclusive VAT and a 5% exclusive service charge shows $15 VAT, adds $5 for service, and totals $120 before shipping. Saved orders retain their original breakdown when rates change.
 
 ## Dashboard
 
